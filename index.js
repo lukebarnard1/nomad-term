@@ -1,19 +1,27 @@
 
 const { stdin, stdout } = process;
 
+function initWorkspace() {
+    return {
+        focussed_shell: 0,
+        layout: 0,
+        scroll_position: 0,
+        shells: [],
+        start_last_shell_index: 0,
+        start_size_pct: 50,
+    };
+}
+
 const reduce = (state={
-  workspaces: [
-    { shells: [], start_shell_count: 1, start_size_pct: 50, layout: 0, focussed_shell: 0 },
-    { shells: [], start_shell_count: 1, start_size_pct: 50, layout: 0, focussed_shell: 0 },
-  ],
+  mode: true,
+  workspaces: [ initWorkspace(), initWorkspace() ],
   focussed_workspace: 0,
 }, action) => {
     return {
         ...state,
-
         mode: reduceMode(state, action),
-        workspaces: reduceWorkspaces(state, action),
-        focussed_workspace: reduceFocussedWorkspace(state, action),
+        workspaces: state.mode ? reduceWorkspaces(state, action) : state.workspaces,
+        focussed_workspace: state.mode ? reduceFocussedWorkspace(state, action) : state.focussed_workspace,
     };
 }
 
@@ -51,7 +59,7 @@ function newShell() {
 }
 
 function reduceCurrentWorkspace(state, action) {
-    const { shells, focussed_shell, start_size_pct } = state;
+    const { shells, focussed_shell, start_size_pct, start_last_shell_index } = state;
 
     const rotatedTarget = action.direction
         ? rotate(shells.length, focussed_shell, action.direction)
@@ -69,7 +77,7 @@ function reduceCurrentWorkspace(state, action) {
             focussed_shell: rotatedTarget,
         },
         'LAUNCH_SHELL': {
-            shells: [newShell(), ...shells]
+            shells: [...shells, newShell()]
         },
         'CLOSE_FOCUSSED_SHELL': {
             shells: shells.filter((s, index) => index !== focussed_shell),
@@ -78,6 +86,12 @@ function reduceCurrentWorkspace(state, action) {
         'START_SIZE_CHANGE': {
             start_size_pct: limit(start_size_pct + action.direction * 10, 0, 100),
         },
+        'START_SHELL_INDEX_CHANGE': {
+            start_last_shell_index: limit(start_last_shell_index + action.direction, 0, shells.length - 1)
+        },
+        'LAYOUT_ROTATE': {
+            layout: rotate(3, state.layout, 1),
+        }
     }[action.type] || {};
 
     return {
@@ -94,12 +108,16 @@ function reduceWorkspaces(state, action) {
 
     let newWorkspaces = workspaces
         .map((workspace, index) => {
+            // This complexity indicates this could be better...
+            if (action.destination === focussed_workspace) return workspace;
             if (typeof action.destination === 'undefined' || action.type !== 'SHELL_WORKSPACE_MOVE') return workspace;
             if (typeof focussedWorkspace.shells[focussed_shell] === 'undefined') return workspace;
             if (index === focussed_workspace) {
                 return {
                     ...workspace,
-                    shells: workspace.shells.filter((s, i) => i !== focussed_shell)
+                    shells: workspace.shells.filter((s, i) => i !== focussed_shell),
+                    focussed_shell: rotate(workspace.shells.length - 1, focussed_shell, -1),
+                    start_last_shell_index: limit(workspace.start_last_shell_index, 0, workspace.shells.length - 1)
                 }
             } else if (index === action.destination) {
                 return {
@@ -127,8 +145,8 @@ function applyAction(action) {
     state = reduce(state, action);
     console.info(action);
     console.info();
-    console.info(0, state.workspaces[0].shells);
-    console.info(1, state.workspaces[1].shells);
+    console.info(state.workspaces[0]);
+    console.info(state.workspaces[1]);
 }
 
 function clearScreen() {
@@ -185,8 +203,8 @@ function mapKeyToAction(key) {
         'l': {type: 'START_SIZE_CHANGE', direction: +1},
         'h': {type: 'START_SIZE_CHANGE', direction: -1},
 
-        ',': {type: 'START_SHELL_COUNT_CHANGE', direction: +1},
-        '.': {type: 'START_SHELL_COUNT_CHANGE', direction: -1},
+        ',': {type: 'START_SHELL_INDEX_CHANGE', direction: +1},
+        '.': {type: 'START_SHELL_INDEX_CHANGE', direction: -1},
 
         'Q': {type: 'QUIT'},
         'q': {type: 'RESTART'},
@@ -194,6 +212,21 @@ function mapKeyToAction(key) {
         // backspace
         '\u007f': {type: 'LAUNCH_SHELL'},
     }[key];
+}
+
+function startEffects(action) {
+    // Anything that affects state as a side-effect
+    //  - program
+    //  - child processes
+    //
+    // These will in turn generate actions that can alter
+    // state.
+}
+
+function render() {
+    // Draw to the terminal the current workspace of shells as dictated
+    // by the selected layout. These will be empty to begin with. Later
+    // they will contain scrolled content.
 }
 
 function onData(data) {
@@ -206,12 +239,21 @@ function onData(data) {
         if (action) {
             applyAction(action);
         }
+
+        startEffects(action);
+
+        render();
     }
 }
 
 function start() {
+    //////////////////////////////////////////////////////////////
     //
-    ////
+    // shmonad.js
+    //
+    // i like xmonad, ok.
+    //
+    //////////////////////////////////////////////////////////////
     //
     // 1. View based on state. Assume empty buffers in each pane.
     // 2. Plain text buffering into panes, scrolling to old output.
