@@ -137,16 +137,10 @@ function reduceWorkspaces(state, action) {
             : workspace
     );
 }
-
-
 let state;
 function applyAction(action) {
     clearScreen();
     state = reduce(state, action);
-    console.info(action);
-    console.info();
-    console.info(state.workspaces[0]);
-    console.info(state.workspaces[1]);
 }
 
 function clearScreen() {
@@ -223,10 +217,70 @@ function startEffects(action) {
     // state.
 }
 
+const VIEW_FRAME = {
+    CORNER: {
+        T: { L: '\u250c', R: '\u2510' },
+        B: { L: '\u2514', R: '\u2518' },
+    },
+    EDGE: { V: '\u2502', H: '\u2500' },
+    POINT: {
+        V: { R: '\u2523', L: '\u252b' },
+        H: { T: '\u253b', B: '\u2533' },
+        M: '\u254b',
+    }
+};
+
+function drawEdgeH(x, y, w, top) {
+    const viewW = limit(Math.floor(w * stdout.columns / 100), 0, stdout.columns)
+    stdout.cursorTo(x, y);
+
+    const corner = top ? VIEW_FRAME.CORNER.T : VIEW_FRAME.CORNER.B;
+
+    const line = Buffer.alloc(viewW * 4);
+    let c;
+    for (let i = 0; i < viewW; i++) {
+        c = VIEW_FRAME.EDGE.H;
+        if (i === 0) {
+            c = corner.L;
+        } else if (i === viewW - 1) {
+            c = corner.R;
+        }
+        line.write(c, i * 4);
+    }
+    stdout.write(line);
+}
+
+function drawBox(x, y, w, h) {
+    const viewH = limit(Math.floor(h * stdout.rows / 100), 0, stdout.rows)
+    const viewW = limit(Math.floor(w * stdout.columns / 100), 0, stdout.columns)
+
+    const blank = Buffer.alloc(viewW * (viewH - 1) * 8);
+    let c;
+    for (let i = 0; i < blank.length / 4; i++) {
+        const xx = (i + 1) % viewW;
+
+        c = {
+            [0]: VIEW_FRAME.EDGE.V,
+            [1]: VIEW_FRAME.EDGE.V,
+        }[xx] || ' ';
+        blank.write(c, i * 4);
+    }
+
+    stdout.cursorTo(x, y + 1);
+    stdout.write(blank);
+
+    drawEdgeH(x, y, w, true);
+    drawEdgeH(x, y + h, w, false);
+}
+
 function render() {
     // Draw to the terminal the current workspace of shells as dictated
     // by the selected layout. These will be empty to begin with. Later
     // they will contain scrolled content.
+
+    // So always draw a frame. Sub divide with more shells, for now horizontally.
+
+    drawBox(0, 0, 100, 100);
 }
 
 function onData(data) {
@@ -265,6 +319,9 @@ function start() {
     //
     stdin.setRawMode(true);
     stdin.on('data', onData);
+    stdout.on('resize', () => {
+        render();
+    });
 
     process.on('SIGINT', () => {
         console.info('shmonad interrupted');
