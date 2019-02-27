@@ -80,6 +80,7 @@ function reduceCurrentWorkspace(state, action) {
             shells: [...shells, newShell()]
         },
         'CLOSE_FOCUSSED_SHELL': {
+            // TODO: Update start_last_shell_index
             shells: shells.filter((s, index) => index !== focussed_shell),
             focussed_shell: focussed_shell === 0 ? 0 : rotate(shells.length - 1, focussed_shell, -1),
         },
@@ -224,63 +225,90 @@ const VIEW_FRAME = {
     },
     EDGE: { V: '\u2502', H: '\u2500' },
     POINT: {
-        V: { R: '\u2523', L: '\u252b' },
+        V: {
+            R: '\u2502',
+            L: '\u2502',
+            //R: '\u2523', L: '\u252b'
+        },
         H: { T: '\u253b', B: '\u2533' },
         M: '\u254b',
     }
 };
 
-function drawEdgeH(x, y, w, top) {
-    const viewW = limit(Math.floor(w * stdout.columns / 100), 0, stdout.columns)
-    stdout.cursorTo(x, y);
+function drawEdgeH(x, y, w, top, join) {
+    const corner = join
+        ? VIEW_FRAME.POINT.V
+        : (top ? VIEW_FRAME.CORNER.T : VIEW_FRAME.CORNER.B);
 
-    const corner = top ? VIEW_FRAME.CORNER.T : VIEW_FRAME.CORNER.B;
-
-    const line = Buffer.alloc(viewW * 4);
     let c;
-    for (let i = 0; i < viewW; i++) {
+    for (let i = 0; i < w; i++) {
         c = VIEW_FRAME.EDGE.H;
         if (i === 0) {
             c = corner.L;
-        } else if (i === viewW - 1) {
+        } else if (i === w - 1) {
             c = corner.R;
         }
-        line.write(c, i * 4);
+        stdout.cursorTo(x + i, y);
+        stdout.write(c);
     }
-    stdout.write(line);
 }
 
-function drawBox(x, y, w, h) {
-    const viewH = limit(Math.floor(h * stdout.rows / 100), 0, stdout.rows)
+function drawBox(x, y, w, h, isTop) {
+    const viewX = limit(Math.floor(x * stdout.columns / 100), 0, stdout.columns)
+    const viewY = limit(Math.floor(y * stdout.rows / 100), 0, stdout.rows)
     const viewW = limit(Math.floor(w * stdout.columns / 100), 0, stdout.columns)
+    const viewH = limit(Math.floor(h * stdout.rows / 100), 0, stdout.rows)
 
-    const blank = Buffer.alloc(viewW * (viewH - 1) * 8);
     let c;
-    for (let i = 0; i < blank.length / 4; i++) {
-        const xx = (i + 1) % viewW;
-
-        c = {
-            [0]: VIEW_FRAME.EDGE.V,
-            [1]: VIEW_FRAME.EDGE.V,
-        }[xx] || ' ';
-        blank.write(c, i * 4);
+    for (let i = 0; i < (viewH - 1); i++) {
+        stdout.cursorTo(viewX, viewY + 1 + i);
+        stdout.write(VIEW_FRAME.EDGE.V);
+        stdout.cursorTo(viewX + viewW - 1, viewY + 1 + i);
+        stdout.write(VIEW_FRAME.EDGE.V);
     }
 
-    stdout.cursorTo(x, y + 1);
-    stdout.write(blank);
+    drawEdgeH(viewX, viewY, viewW, true, !isTop);
+    drawEdgeH(viewX, viewY + viewH, viewW, false);
+}
 
-    drawEdgeH(x, y, w, true);
-    drawEdgeH(x, y + h, w, false);
+function drawBoxesH(x, w, divisions) {
+    const divisionH = Math.floor(100 / divisions);
+
+    for (let i = 0; i < divisions; i++) {
+        drawBox(x, i * divisionH, w, divisionH, i === 0);
+    }
 }
 
 function render() {
-    // Draw to the terminal the current workspace of shells as dictated
-    // by the selected layout. These will be empty to begin with. Later
-    // they will contain scrolled content.
 
-    // So always draw a frame. Sub divide with more shells, for now horizontally.
+    // Render Layout 0
 
-    drawBox(0, 0, 100, 100);
+    clearScreen();
+    console.info(state);
+
+    if (!state) return;
+
+    const fw = state.workspaces[state.focussed_workspace];
+
+    const startDivisions = fw.start_last_shell_index + 1;
+    const endDivisions = fw.shells.length - startDivisions;
+
+    let w = 0;
+
+    if (endDivisions === 0) {
+        w = 100;
+    } else if (startDivisions === 0) {
+        w = 0;
+    } else {
+        w = fw.start_size_pct;
+    }
+
+    if (w !== 0) {
+        drawBoxesH(0, w, startDivisions);
+    }
+    if (w !== 100) {
+        drawBoxesH(w, 100 - w, endDivisions);
+    }
 }
 
 function onData(data) {
@@ -328,6 +356,7 @@ function start() {
         exit();
     });
     clearScreen();
+    render();
 }
 
 start();
