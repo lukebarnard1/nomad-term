@@ -151,6 +151,7 @@ function clearScreen() {
 }
 
 function exit() {
+    clearScreen();
     console.info('shmonad exiting');
     process.exit();
 }
@@ -271,11 +272,29 @@ function drawBox(x, y, w, h, isTop) {
     drawEdgeH(viewX, viewY + viewH, viewW, false);
 }
 
-function drawBoxesH(x, w, divisions) {
-    const divisionH = Math.floor(100 / divisions);
+function viewTransform(c) {
+    const space = {
+        x: stdout.columns,
+        y: stdout.rows,
+        w: stdout.columns,
+        h: stdout.rows,
+    };
+    const transform = (k, v) => limit(Math.floor(v * space[k] / 100), 0, space[k]);
+    const transformed = Object.keys(c)
+        .map((k) => ({[k]: transform(k, c[k])}))
+        .reduce((t, n) => ({...t, ...n}), {});
+    return transformed;
+}
 
-    for (let i = 0; i < divisions; i++) {
-        drawBox(x, i * divisionH, w, divisionH, i === 0);
+function drawBoxesH(x, w, h, divisions) {
+    const divisionH = Math.floor(h / divisions);
+
+    drawBox(x, 0, w, h, true);
+
+    for (let i = 1; i < divisions; i++) {
+        const y = i * divisionH;
+        const { x: viewX, y: viewY, w: viewW } = viewTransform({x, y, w});
+        drawEdgeH(viewX, viewY, viewW, false, true);
     }
 }
 
@@ -303,11 +322,13 @@ function render() {
         w = fw.start_size_pct;
     }
 
+    const h = 100;
+
     if (w !== 0) {
-        drawBoxesH(0, w, startDivisions);
+        drawBoxesH(0, w, h, startDivisions);
     }
     if (w !== 100) {
-        drawBoxesH(w, 100 - w, endDivisions);
+        drawBoxesH(w, 100 - w - 1, h, endDivisions);
     }
 }
 
