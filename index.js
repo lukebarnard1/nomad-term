@@ -254,24 +254,6 @@ function drawEdgeH(x, y, w, top, join) {
     }
 }
 
-function drawBox(x, y, w, h, isTop) {
-    const viewX = limit(Math.floor(x * stdout.columns / 100), 0, stdout.columns)
-    const viewY = limit(Math.floor(y * stdout.rows / 100), 0, stdout.rows)
-    const viewW = limit(Math.floor(w * stdout.columns / 100), 0, stdout.columns)
-    const viewH = limit(Math.floor(h * stdout.rows / 100), 0, stdout.rows)
-
-    let c;
-    for (let i = 0; i < (viewH - 1); i++) {
-        stdout.cursorTo(viewX, viewY + 1 + i);
-        stdout.write(VIEW_FRAME.EDGE.V);
-        stdout.cursorTo(viewX + viewW - 1, viewY + 1 + i);
-        stdout.write(VIEW_FRAME.EDGE.V);
-    }
-
-    drawEdgeH(viewX, viewY, viewW, true, !isTop);
-    drawEdgeH(viewX, viewY + viewH, viewW, false);
-}
-
 function viewTransform(c) {
     const space = {
         x: stdout.columns,
@@ -284,6 +266,22 @@ function viewTransform(c) {
         .map((k) => ({[k]: transform(k, c[k])}))
         .reduce((t, n) => ({...t, ...n}), {});
     return transformed;
+}
+
+
+function drawBox(x, y, w, h, isTop) {
+    const { x: viewX, y: viewY, w: viewW, h: viewH } = viewTransform({x, y, w, h});
+
+    let c;
+    for (let i = 0; i < (viewH - 1); i++) {
+        stdout.cursorTo(viewX, viewY + 1 + i);
+        stdout.write(VIEW_FRAME.EDGE.V);
+        stdout.cursorTo(viewX + viewW - 1, viewY + 1 + i);
+        stdout.write(VIEW_FRAME.EDGE.V);
+    }
+
+    drawEdgeH(viewX, viewY, viewW, true, !isTop);
+    drawEdgeH(viewX, viewY + viewH, viewW, false);
 }
 
 function drawBoxesH(x, w, h, divisions) {
