@@ -258,6 +258,7 @@ function viewTransform(c) {
     const space = {
         x: stdout.columns,
         y: stdout.rows,
+        y2: stdout.rows,
         w: stdout.columns,
         h: stdout.rows,
     };
@@ -284,15 +285,64 @@ function drawBox(x, y, w, h, isTop) {
     drawEdgeH(viewX, viewY + viewH, viewW, false);
 }
 
-function drawBoxesH(x, w, h, divisions) {
+
+function drawBuffer(x, y, w, h, buffer) {
+    let i = buffer.length;
+    let prevI = i;
+    let line = h;
+
+    while (i !== -1 && line > 1) {
+        i = buffer.slice(0, i).lastIndexOf('\n');
+        line--;
+
+        if (prevI) {
+            stdout.cursorTo(x, y + line);
+            stdout.write(buffer.slice(i + 1, prevI));
+        }
+
+        prevI = i;
+    }
+}
+
+function drawBoxesH(x, w, h, shells) {
+    if (shells.length === 0) return;
+
+    const divisions = shells.length;
     const divisionH = Math.floor(h / divisions);
 
     drawBox(x, 0, w, h, true);
 
-    for (let i = 1; i < divisions; i++) {
-        const y = i * divisionH;
-        const { x: viewX, y: viewY, w: viewW } = viewTransform({x, y, w});
-        drawEdgeH(viewX, viewY, viewW, false, true);
+    const { h: totalViewH } = viewTransform({h});
+
+    let viewY = 0;
+    for (let i = 0; i < divisions; i++) {
+        const y = (i + 1) * divisionH;
+        const h = divisionH;
+        const {
+            x: viewX,
+            y: newViewY,
+            w: viewW,
+        } = viewTransform({x, y, w});
+
+        let viewH = newViewY - viewY;
+
+        if (i === divisions - 1) {
+            viewH = totalViewH - viewY - 1;
+        }
+
+        if (i > 0) {
+            drawEdgeH(viewX, viewY, viewW, false, true);
+        }
+
+        const shell_id = shells[i].id;
+        const buffer = Buffer.from(
+            `Hello. I am shell ${i}: ${shell_id}\nthis is on the next line\n\n\nand this is several lines apart`
+        )
+
+        // This will need to know scroll state and buffer contents
+        drawBuffer(viewX + 1, viewY, viewW, viewH, buffer);
+
+        viewY = newViewY;
     }
 }
 
@@ -301,11 +351,14 @@ function render() {
     // Render Layout 0
 
     clearScreen();
-    console.info(state);
 
     if (!state) return;
 
     const fw = state.workspaces[state.focussed_workspace];
+
+    stdout.cursorTo(1, 1);
+    console.info(state);
+    console.info({l: fw.shells.map(k => k.id)});
 
     const startDivisions = fw.start_last_shell_index + 1;
     const endDivisions = fw.shells.length - startDivisions;
@@ -323,10 +376,10 @@ function render() {
     const h = 100;
 
     if (w !== 0) {
-        drawBoxesH(0, w, h, startDivisions);
+        drawBoxesH(0, w, h, fw.shells.slice(0, startDivisions));
     }
     if (w !== 100) {
-        drawBoxesH(w, 100 - w - 1, h, endDivisions);
+        drawBoxesH(w, 100 - w - 1, h, fw.shells.slice(fw.start_last_shell_index + 1));
     }
 }
 
