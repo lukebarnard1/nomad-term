@@ -52,10 +52,31 @@ function uniqueId() {
     return Math.random().toString(36).slice(2);
 }
 
+const child_process = require('child_process');
+
 function newShell() {
-    return {
-        id: uniqueId(),
-    };
+    const id = uniqueId();
+
+    // Arbitrary
+    const buffer = Buffer.alloc(10000 * 4);
+    buffers[id] = buffer;
+
+    let bufferCursor = 0;
+
+    // Fork a process
+    //
+    const proc = child_process.spawn('cat', ['index.js']);
+
+    proc.stdout.on('data', (data) => {
+        bufferCursor += buffer.write(data.toString('utf8'), bufferCursor);
+    });
+
+    proc.on('close', () => {
+        buffer.write('\n\n\nprocess exited\n', bufferCursor);
+    });
+
+
+    return { id };
 }
 
 function reduceCurrentWorkspace(state, action) {
@@ -143,6 +164,8 @@ function applyAction(action) {
     clearScreen();
     state = reduce(state, action);
 }
+
+let buffers = {};
 
 function clearScreen() {
     stdout.cursorTo(0,0);
@@ -297,7 +320,7 @@ function drawBuffer(x, y, w, h, buffer) {
 
         if (prevI) {
             stdout.cursorTo(x, y + line);
-            stdout.write(buffer.slice(i + 1, prevI));
+            stdout.write(buffer.slice(i + 1, prevI).slice(0, w - 2));
         }
 
         prevI = i;
@@ -335,10 +358,7 @@ function drawBoxesH(x, w, h, shells) {
         }
 
         const shell_id = shells[i].id;
-        const buffer = Buffer.from(
-            `Hello. I am shell ${i}: ${shell_id}\nthis is on the next line\n\n\nand this is several lines apart`
-        )
-
+        const buffer = buffers[shell_id];
         // This will need to know scroll state and buffer contents
         drawBuffer(viewX + 1, viewY, viewW, viewH, buffer);
 
