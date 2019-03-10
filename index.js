@@ -54,29 +54,178 @@ function uniqueId() {
 
 const child_process = require('child_process');
 
+class SubTerminal {
+    constructor() {
+        this.id = uniqueId();
+
+        // The last width x height characters are the viewport
+        // 4 bytes text, 1 byte format
+        this.buffer = Buffer.alloc(10000 * 5);
+
+        this.cursor = {
+            x: 0,
+            y: 0,
+        };
+
+        this.dimension = {
+            w: 0,
+            h: 0,
+        };
+    }
+
+    setDimension({w,h}) {
+        this.dimension = {w, h}
+    }
+
+    setCursor({x, y}) {
+        this.cursor = {x, y};
+    }
+
+    getActionFor(data) {
+
+        const patterns = [
+            /\u001b\[()([0-9;]*)([Hfrm])/,
+            /\u001b\[()([0-9]*)([ABCD])/,
+            /\u001b\[()([12357])([JKgnhl])/,
+            /\u001b\[()()([JKcgrsu])/,
+            /\u001b()([78DHMc])/,
+            /\u001b()([\(\)][AB012])/,
+            /\u001b\[\?()([0-9]*[lh])/,
+        ];
+
+        const matches = patterns.map(
+            p => data.toString('utf8').match(p)
+        ).filter(m => m).sort((a, b) => {
+            if (a.index === b.index) {
+                return a[0].length < b[0].length ? -1 : 1;
+            }
+            if (a.index < b.index) {
+                return -1;
+            } else {
+                return 1;
+            }
+        });
+
+        const match = matches[0];
+
+        return match ? {
+            action: {
+                type: 'CONTROL',
+                match: match.slice(1),
+            },
+            start: match.index,
+            length: match[0].length
+        } : {
+            action: null,
+            not_matching: data.toString('utf8'),
+            offset: -1,
+        }
+    }
+
+    reduce(action) {
+        // only handle cursor movement and text
+        //
+
+        switch (action.type) {
+            case 'TEXT':
+                this.insertText(action.text);
+                break;
+            case 'CONTROL':
+                if (action.match[2] === 'H') {
+                    this.setCursor(0,0);
+                }
+                break;
+        }
+
+    }
+
+    insertText(text) {
+        // Inserting in top left 0,0
+        //
+        // this means we set the offset of the viewport
+        // to the start of the buffer?
+
+        const bufX = this.cursor.x * 4;
+        const bufY = this.cursor.y * 4;
+
+        const bufIx = bufX + bufY * this.dimension.w;
+
+        this.buffer.write(text);
+    }
+
+    write(data) {
+        // Check for control sequences. If else, write to
+        // the textBuffer
+
+        const end = this.buffer.length;
+        const { w, h } = this.dimension;
+
+        // for data, the max that can be interpreted can be
+        // removed from the text. An escape sequence that is
+        // invalid is also removed - anything that starts
+        // with ESC and continues with a character that is
+        // not recognised. The invalid first character is
+        // also removed. It doesn't seem to matter how much you consume
+        //
+
+        // Would be great if this function could return an action
+        // that we can apply as a modification to state. The state
+        // in this case is not a JSON but actually a buffer.
+        let offset = 0;
+        let action;
+        const results = [];
+        let lim = 1000
+
+        while (offset !== -1 && lim > 0) {
+            const result = this.getActionFor(data.slice(offset));
+            if (!result.action) {
+                results.push({
+                    type: 'TEXT',
+                    text: data.toString('utf8').slice(offset)
+                });
+                break;
+            }
+
+            // Insert text
+            if (result.start > 0) {
+                results.push({
+                    type: 'TEXT',
+                    text: data.toString('utf8').slice(offset, offset + result.start)
+                });
+            }
+
+            // Control sequence
+            results.push(result);
+
+            offset += result.start + result.length;
+            lim--;
+        }
+
+        results.forEach(a => this.reduce(a));
+
+        render();
+    }
+}
+
 function newShell() {
-    const id = uniqueId();
+    const st = new SubTerminal();
 
-    // Arbitrary
-    const buffer = Buffer.alloc(10000 * 4);
-    buffers[id] = buffer;
-
-    let bufferCursor = 0;
+    subTerminals[st.id] = st;
 
     // Fork a process
     //
-    const proc = child_process.spawn('cat', ['index.js']);
+    const proc = child_process.spawn('vim');
+    //const proc = child_process.spawn('echo', ['\u001b[Htest']);
 
     proc.stdout.on('data', (data) => {
-        bufferCursor += buffer.write(data.toString('utf8'), bufferCursor);
+        st.write(data);
     });
 
     proc.on('close', () => {
-        buffer.write('\n\n\nprocess exited\n', bufferCursor);
+        //st.write('\n\n\nprocess exited\n');
     });
 
-
-    return { id };
+    return { id: st.id };
 }
 
 function reduceCurrentWorkspace(state, action) {
@@ -165,7 +314,7 @@ function applyAction(action) {
     state = reduce(state, action);
 }
 
-let buffers = {};
+let subTerminals = {};
 
 function clearScreen() {
     stdout.cursorTo(0,0);
@@ -309,22 +458,30 @@ function drawBox(x, y, w, h, isTop) {
 }
 
 
+// TODO: This should allow for scrolling though the buffer
+// with a simple line offset. The offset is controlled by
+// either control sequences from the program. If the program
+// outputs anything, the scroll is reset to the bottom-most
+// position (offset 0), effectively showing the user the most
+// up-to-date "view" or "viewport" of the buffer. This means
+// that if the program doesn't give any new output when the
+// user scrolls, the offset should increase. This is down to
+// the simulated terminal.
 function drawBuffer(x, y, w, h, buffer) {
-    let i = buffer.length;
-    let prevI = i;
-    let line = h;
+    let i = 0;
+    let prevI = 0;
+    let line = 1;
 
-    while (i !== -1 && line > 1) {
-        i = buffer.slice(0, i).lastIndexOf('\n');
-        line--;
+    const lines = buffer.toString('utf8').split('\n');
 
-        if (prevI) {
-            stdout.cursorTo(x, y + line);
-            stdout.write(buffer.slice(i + 1, prevI).slice(0, w - 2));
-        }
+    lines.forEach((l) => {
+        stdout.cursorTo(x, y + line);
+        stdout.write(l.slice(0, w - 2));
 
-        prevI = i;
-    }
+        line++;
+    });
+
+    return;
 }
 
 function drawBoxesH(x, w, h, shells) {
@@ -358,8 +515,8 @@ function drawBoxesH(x, w, h, shells) {
         }
 
         const shell_id = shells[i].id;
-        const buffer = buffers[shell_id];
-        // This will need to know scroll state and buffer contents
+        const buffer = subTerminals[shell_id].buffer;
+
         drawBuffer(viewX + 1, viewY, viewW, viewH, buffer);
 
         viewY = newViewY;
@@ -377,8 +534,8 @@ function render() {
     const fw = state.workspaces[state.focussed_workspace];
 
     stdout.cursorTo(1, 1);
-    console.info(state);
-    console.info({l: fw.shells.map(k => k.id)});
+    //   console.info(state);
+    //   console.info({l: fw.shells.map(k => k.id)});
 
     const startDivisions = fw.start_last_shell_index + 1;
     const endDivisions = fw.shells.length - startDivisions;
