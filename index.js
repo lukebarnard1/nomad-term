@@ -1,5 +1,10 @@
 
 const { stdin, stdout } = process;
+const fs = require('fs');
+const path = require('path');
+
+var stream = fs.createWriteStream(path.join(__dirname,'info.log'), {flags: 'a'});
+const log = { info: (o) => stream.write(JSON.stringify(o) + '\n') };
 
 function initWorkspace() {
     return {
@@ -55,49 +60,69 @@ function uniqueId() {
 const child_process = require('child_process');
 
 class SubTerminal {
-    constructor() {
+    constructor(proc) {
         this.id = uniqueId();
+        this.proc = proc;
 
         // The last width x height characters are the viewport
         // 4 bytes text, 1 byte format
-        this.buffer = Buffer.alloc(10000 * 5);
+        const w = 10000;
+        const h = 10000;
+        this.buffer = Buffer.alloc(w * h, ' ');
 
         this.cursor = {
             x: 0,
             y: 0,
         };
 
-        this.dimension = {
-            w: 0,
-            h: 0,
-        };
+        // Effective maximum size of viewport
+        this.dimension = { w, h };
     }
 
     setDimension({w,h}) {
         this.dimension = {w, h}
     }
 
-    setCursor({x, y}) {
+    resize() {
+        // Send 28 signal to process
+        //
+        this.proc.kill(28);
+    }
+
+    setCursor(y, x) {
+        log.info({cursor: '', x, y});
         this.cursor = {x, y};
     }
 
-    getActionFor(data) {
+    clearBuffer() {
+        const {w, h} = this.dimension;
+        this.buffer = Buffer.alloc(w * h, ' ');
+    }
 
+    getActionFor(data) {
+        // TODO: Bit cumbersome to identify different
+        // sequences as matches against different regexps.
+        //
+        // Probably better to reduce to { function, params }
         const patterns = [
-            /\u001b\[()([0-9;]*)([Hfrm])/,
+            /\u001b\[()([0-9;]*)([Hfrmt])/,
             /\u001b\[()([0-9]*)([ABCD])/,
-            /\u001b\[()([12357])([JKgnhl])/,
+            /\u001b\[()([123567])([JKgnhl])/,
             /\u001b\[()()([JKcgrsu])/,
-            /\u001b()([78DHMc])/,
+            /\u001b()([78DHMc=])/,
             /\u001b()([\(\)][AB012])/,
             /\u001b\[\?()([0-9]*[lh])/,
+            /()()([\r\n])/,
+
+            // no idea what the below does
+            /\u001b\[()()2\s*([0-9a-z])/
         ];
 
         const matches = patterns.map(
             p => data.toString('utf8').match(p)
         ).filter(m => m).sort((a, b) => {
             if (a.index === b.index) {
-                return a[0].length < b[0].length ? -1 : 1;
+                return a[0].length > b[0].length ? -1 : 1;
             }
             if (a.index < b.index) {
                 return -1;
@@ -123,20 +148,50 @@ class SubTerminal {
     }
 
     reduce(action) {
-        // only handle cursor movement and text
-        //
-
+        let handled = false;
         switch (action.type) {
             case 'TEXT':
                 this.insertText(action.text);
                 break;
             case 'CONTROL':
+                const params = action.match[1].split(';').map((s) => parseInt(s));
                 if (action.match[2] === 'H') {
-                    this.setCursor(0,0);
+                    if (action.match[1]) {
+                        this.setCursor(...params);
+                    } else {
+                        this.setCursor(0, 0);
+                    }
+                } else if (action.match[2] === '\r') {
+                    this.cursor.x = 0;
+                } else if (action.match[2] === '\n') {
+                    this.cursor.x = 0;
+                    this.cursor.y += 1;
+                } else if (action.match[1] === '2' && action.match[2] === 'J') {
+                    this.clearBuffer();
+                    this.setCursor(0, 0);
+                } else if (action.match[1] === '6' && action.match[2] === 'n') {
+                    this.setCursor(3, 3);
+                    this.insertText(':D');
                 }
+                handled = true
                 break;
         }
 
+        log.info(action);
+    }
+
+    // TODO: Accept offsets into the terminal
+    //   TODO: Scroll to latest
+    // TODO: Formatting
+    drawSubTerminal(w, h) {
+        const lines = [];
+
+        for (let i = 0; i < h; i++) {
+            const start = i * this.dimension.w;
+            lines.push(this.buffer.slice(start, start + this.dimension.w));
+        }
+
+        return lines;
     }
 
     insertText(text) {
@@ -145,32 +200,29 @@ class SubTerminal {
         // this means we set the offset of the viewport
         // to the start of the buffer?
 
-        const bufX = this.cursor.x * 4;
-        const bufY = this.cursor.y * 4;
+        const bufX = this.cursor.x;
+        const bufY = this.cursor.y;
+        //log.info({insertText: text, bufX, bufY});
 
         const bufIx = bufX + bufY * this.dimension.w;
 
-        this.buffer.write(text);
+        if (bufIx > this.buffer.length) return;
+
+        // text could include cariage returns
+        //   \n moves down
+        //   \r goes back to start
+
+        try {
+            const t = text.slice(0, this.dimension.w - bufX);
+
+            this.buffer.write(t, bufIx);
+            this.cursor.x += t.length;
+        } catch (e) {
+            log.info({e, bufIx, bufX, bufY});
+        }
     }
 
     write(data) {
-        // Check for control sequences. If else, write to
-        // the textBuffer
-
-        const end = this.buffer.length;
-        const { w, h } = this.dimension;
-
-        // for data, the max that can be interpreted can be
-        // removed from the text. An escape sequence that is
-        // invalid is also removed - anything that starts
-        // with ESC and continues with a character that is
-        // not recognised. The invalid first character is
-        // also removed. It doesn't seem to matter how much you consume
-        //
-
-        // Would be great if this function could return an action
-        // that we can apply as a modification to state. The state
-        // in this case is not a JSON but actually a buffer.
         let offset = 0;
         let action;
         const results = [];
@@ -181,7 +233,8 @@ class SubTerminal {
             if (!result.action) {
                 results.push({
                     type: 'TEXT',
-                    text: data.toString('utf8').slice(offset)
+                    NO_ACTION: true,
+                    text: data.slice(offset).toString('utf8')
                 });
                 break;
             }
@@ -190,32 +243,34 @@ class SubTerminal {
             if (result.start > 0) {
                 results.push({
                     type: 'TEXT',
-                    text: data.toString('utf8').slice(offset, offset + result.start)
+                    ACTION: true,
+                    //data: data.slice(offset).toString('utf8'),
+                    text: data.slice(offset, offset + result.start).toString('utf8')
                 });
             }
 
             // Control sequence
-            results.push(result);
+            results.push(result.action);
 
             offset += result.start + result.length;
             lim--;
         }
 
         results.forEach(a => this.reduce(a));
-
-        render();
     }
 }
 
 function newShell() {
-    const st = new SubTerminal();
-
-    subTerminals[st.id] = st;
 
     // Fork a process
     //
-    const proc = child_process.spawn('vim');
-    //const proc = child_process.spawn('echo', ['\u001b[Htest']);
+    //const proc = child_process.spawn('vim');
+    // TODO: Do this inside SubTerminal
+    const proc = child_process.spawn('vim')
+
+    const st = new SubTerminal(proc);
+
+    subTerminals[st.id] = st;
 
     proc.stdout.on('data', (data) => {
         st.write(data);
@@ -235,35 +290,51 @@ function reduceCurrentWorkspace(state, action) {
         ? rotate(shells.length, focussed_shell, action.direction)
         : 0;
 
-    const newState = {
-        'FOCUS_SHELL': { focussed_shell: rotatedTarget },
-        'SWAP_SHELL': {
-            shells: shells.map((s, index) =>
-                ({
-                    [focussed_shell]: shells[rotatedTarget],
-                    [rotatedTarget]: shells[focussed_shell],
-                }[index] || s),
-            ),
-            focussed_shell: rotatedTarget,
-        },
-        'LAUNCH_SHELL': {
-            shells: [...shells, newShell()]
-        },
-        'CLOSE_FOCUSSED_SHELL': {
-            // TODO: Update start_last_shell_index
-            shells: shells.filter((s, index) => index !== focussed_shell),
-            focussed_shell: focussed_shell === 0 ? 0 : rotate(shells.length - 1, focussed_shell, -1),
-        },
-        'START_SIZE_CHANGE': {
-            start_size_pct: limit(start_size_pct + action.direction * 10, 0, 100),
-        },
-        'START_SHELL_INDEX_CHANGE': {
-            start_last_shell_index: limit(start_last_shell_index + action.direction, 0, shells.length - 1)
-        },
-        'LAYOUT_ROTATE': {
-            layout: rotate(3, state.layout, 1),
-        }
-    }[action.type] || {};
+    let newState = {};
+
+    switch (action.type) {
+        case 'FOCUS_SHELL':
+            newState = { focussed_shell: rotatedTarget };
+            break;
+        case 'SWAP_SHELL':
+            newState = {
+                shells: shells.map((s, index) =>
+                    ({
+                        [focussed_shell]: shells[rotatedTarget],
+                        [rotatedTarget]: shells[focussed_shell],
+                    }[index] || s),
+                ),
+                focussed_shell: rotatedTarget,
+            };
+            break;
+        case 'LAUNCH_SHELL':
+            newState = {
+                shells: [...shells, newShell()]
+            };
+            break;
+        case 'CLOSE_FOCUSSED_SHELL':
+            newState = {
+                // TODO: Update start_last_shell_index
+                shells: shells.filter((s, index) => index !== focussed_shell),
+                focussed_shell: focussed_shell === 0 ? 0 : rotate(shells.length - 1, focussed_shell, -1),
+            };
+            break;
+        case 'START_SIZE_CHANGE':
+            newState = {
+                start_size_pct: limit(start_size_pct + action.direction * 10, 0, 100),
+            };
+            break;
+        case 'START_SHELL_INDEX_CHANGE':
+            newState = {
+                start_last_shell_index: limit(start_last_shell_index + action.direction, 0, shells.length - 1)
+            };
+            break;
+        case 'LAYOUT_ROTATE':
+            newState = {
+                layout: rotate(3, state.layout, 1),
+            }
+            break;
+    }
 
     return {
         ...state,
@@ -312,9 +383,15 @@ let state;
 function applyAction(action) {
     clearScreen();
     state = reduce(state, action);
+    log.info(action);
 }
 
 let subTerminals = {};
+
+function resizeSubTerminals() {
+    // Assume every terminal has changed size
+    Object.values(subTerminals).forEach((st) => st.resize());
+}
 
 function clearScreen() {
     stdout.cursorTo(0,0);
@@ -467,12 +544,12 @@ function drawBox(x, y, w, h, isTop) {
 // that if the program doesn't give any new output when the
 // user scrolls, the offset should increase. This is down to
 // the simulated terminal.
-function drawBuffer(x, y, w, h, buffer) {
+function drawBuffer(x, y, w, h, shell_id) {
     let i = 0;
     let prevI = 0;
     let line = 1;
 
-    const lines = buffer.toString('utf8').split('\n');
+    const lines = subTerminals[shell_id].drawSubTerminal(w - 2, h - 1);
 
     lines.forEach((l) => {
         stdout.cursorTo(x, y + line);
@@ -480,8 +557,6 @@ function drawBuffer(x, y, w, h, buffer) {
 
         line++;
     });
-
-    return;
 }
 
 function drawBoxesH(x, w, h, shells) {
@@ -514,10 +589,7 @@ function drawBoxesH(x, w, h, shells) {
             drawEdgeH(viewX, viewY, viewW, false, true);
         }
 
-        const shell_id = shells[i].id;
-        const buffer = subTerminals[shell_id].buffer;
-
-        drawBuffer(viewX + 1, viewY, viewW, viewH, buffer);
+        drawBuffer(viewX + 1, viewY, viewW, viewH, shells[i].id);
 
         viewY = newViewY;
     }
@@ -566,9 +638,14 @@ function onData(data) {
     if (fc === 3) {
         exit();
     } else {
+
         const action = mapKeyToAction(data);
         if (action) {
             applyAction(action);
+        }
+
+        if (!(state && state.mode)) {
+            Object.values(subTerminals)[0].proc.stdin.write(data);
         }
 
         startEffects(action);
@@ -597,6 +674,11 @@ function start() {
     stdin.setRawMode(true);
     stdin.on('data', onData);
     stdout.on('resize', () => {
+        // Send all terminals SIGWINCH
+        //
+
+        resizeSubTerminals();
+
         render();
     });
 
@@ -604,6 +686,7 @@ function start() {
         console.info('shmonad interrupted');
         exit();
     });
+
     clearScreen();
     render();
 }
