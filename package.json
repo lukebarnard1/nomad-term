@@ -3,5 +3,8 @@
   "version": "1.0.0",
   "main": "index.js",
   "author": "me",
-  "license": "Apache-2.0"
+  "license": "Apache-2.0",
+  "dependencies": {
+    "node-pty": "^0.8.1"
+  }
 }

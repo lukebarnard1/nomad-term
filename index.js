@@ -4,7 +4,13 @@ const fs = require('fs');
 const path = require('path');
 
 var stream = fs.createWriteStream(path.join(__dirname,'info.log'), {flags: 'a'});
-const log = { info: (o) => stream.write(JSON.stringify(o) + '\n') };
+const log = {
+    info: (o) => stream.write(JSON.stringify(o) + '\n'),
+    error: (e) => stream.write(JSON.stringify({
+        message: e.message,
+        stack: e.stack.split('\n')
+    }) + '\n')
+};
 
 function initWorkspace() {
     return {
@@ -59,6 +65,8 @@ function uniqueId() {
 
 const child_process = require('child_process');
 
+const stats = {};
+
 class SubTerminal {
     constructor(proc) {
         this.id = uniqueId();
@@ -70,6 +78,8 @@ class SubTerminal {
         const h = 10000;
         this.buffer = Buffer.alloc(w * h, ' ');
 
+        this.scrollOffset = 0;
+
         this.cursor = {
             x: 0,
             y: 0,
@@ -77,21 +87,49 @@ class SubTerminal {
 
         // Effective maximum size of viewport
         this.dimension = { w, h };
+        this.size = { cols: w, rows: h};
+
+        this.inputBuffer = Buffer.alloc(w);
+        this.inputBufferIx = 0;
     }
 
     setDimension({w,h}) {
         this.dimension = {w, h}
     }
 
-    resize() {
-        // Send 28 signal to process
-        //
-        this.proc.kill(28);
+    resize(cols, rows) {
+        if (this.size.cols === cols || this.size.rows === rows) return;
+        this.size = { cols, rows };
+
+        log.info({resize: this.size});
+        this.proc.resize(cols - 1, rows - 1);
     }
 
     setCursor(y, x) {
-        log.info({cursor: '', x, y});
-        this.cursor = {x, y};
+
+        const cappedX = Math.max(Math.min(x, this.size.cols), 0);
+        const cappedY = Math.max(Math.min(y, this.size.rows), 0);
+
+        this.cursor = {x: cappedX, y: cappedY};
+
+        log.info({cursor: this.cursor});
+
+        this.checkScroll();
+    }
+
+    setScrollOffset(s) {
+        log.info({scroll: s, set: true});
+        this.scrollOffset = s;
+        if (this.scrollOffset < 0) {
+            this.scrollOffset = 0;
+        }
+    }
+
+    moveCursor(y, x) {
+        this.cursor.x += x;
+        this.cursor.y += y;
+
+        this.checkScroll();
     }
 
     clearBuffer() {
@@ -99,23 +137,55 @@ class SubTerminal {
         this.buffer = Buffer.alloc(w * h, ' ');
     }
 
+    clearLineRight() {
+        const {x, y} = this.cursor;
+        this.insertText(Buffer.alloc(this.dimension.w - x, ' ').toString());
+        this.setCursor(y, x);
+    }
+
+    clearScreenDown() {
+        const {x, y} = this.cursor;
+        this.buffer.copy(Buffer.alloc(this.dimension.w * (this.size.rows - y), ' '));
+    }
+
+    newLine() {
+        this.cursor.x = 0;
+        this.cursor.y += 1;
+
+        this.checkScroll();
+    }
+
+    checkScroll() {
+        log.info({c: this.cursor, scroll: this.scrollOffset, checkScroll: true});
+        if (this.cursor.y > this.size.rows - 1) {
+            const d = (this.cursor.y - (this.size.rows - 1))
+            log.info({scroll: this.scrollOffset, d, checkScrollChange: true, size: this.size});
+
+            this.scrollOffset += d;
+
+            this.cursor.y = this.size.rows - 1;
+        }
+    }
+
     getActionFor(data) {
         // TODO: Bit cumbersome to identify different
         // sequences as matches against different regexps.
         //
         // Probably better to reduce to { function, params }
+        //
+        // TODO:  do 7 and 8 need to be controlKeys?
         const patterns = [
-            /\u001b\[()([0-9;]*)([Hfrmt])/,
-            /\u001b\[()([0-9]*)([ABCD])/,
-            /\u001b\[()([123567])([JKgnhl])/,
-            /\u001b\[()()([JKcgrsu])/,
-            /\u001b()([78DHMc=])/,
+            /\u001b\[?=?()([0-9]*[0-9;]*)([ABCcDGgrsuPHfrMmtJKgnhl=])/,
+            /\u001b()()([78])/,
             /\u001b()([\(\)][AB012])/,
             /\u001b\[\?()([0-9]*[lh])/,
-            /()()([\r\n])/,
+            /()()([\r\n\b\t])/,
 
             // no idea what the below does
-            /\u001b\[()()2\s*([0-9a-z])/
+            /\u001b\[()()2\s*([0-9a-z])/,
+
+            // BEL
+            /\u0007()()()/
         ];
 
         const matches = patterns.map(
@@ -137,6 +207,7 @@ class SubTerminal {
             action: {
                 type: 'CONTROL',
                 match: match.slice(1),
+                whole_match: match[0],
             },
             start: match.index,
             length: match[0].length
@@ -155,40 +226,104 @@ class SubTerminal {
                 break;
             case 'CONTROL':
                 const params = action.match[1].split(';').map((s) => parseInt(s));
-                if (action.match[2] === 'H') {
+                const count = params[0] || 1;
+                const controlKey = action.match[2];
+                if (controlKey === 'H') {
                     if (action.match[1]) {
                         this.setCursor(...params);
                     } else {
                         this.setCursor(0, 0);
                     }
-                } else if (action.match[2] === '\r') {
+                } else if (controlKey === '\r') {
                     this.cursor.x = 0;
-                } else if (action.match[2] === '\n') {
-                    this.cursor.x = 0;
-                    this.cursor.y += 1;
-                } else if (action.match[1] === '2' && action.match[2] === 'J') {
+                } else if (controlKey === '\n') {
+
+                    this.newLine();
+                } else if (controlKey === '\b') {
+                    this.cursor.x -= 1;
+                } else if (controlKey === '\t') {
+                    const tabWidth = 8;
+                    const x = tabWidth + this.cursor.x - (this.cursor.x % tabWidth);
+                    this.setCursor(this.cursor.y, x);
+                } else if (action.match[1] === '2' && controlKey === 'J') {
                     this.clearBuffer();
                     this.setCursor(0, 0);
-                } else if (action.match[1] === '6' && action.match[2] === 'n') {
+                } else if (action.match[1] === '6' && controlKey === 'n') {
                     this.setCursor(3, 3);
-                    this.insertText(':D');
+                } else if (controlKey && controlKey.match(/[ABCD]/)) {
+                    if (count > 0) {
+                        switch (controlKey) {
+                            case 'A':
+                                this.moveCursor(-count, 0);
+                                break;
+                            case 'B':
+                                this.moveCursor(count, 0);
+                                break;
+                            case 'C':
+                                this.moveCursor(0, count);
+                                break;
+                            case 'D':
+                                this.moveCursor(0, -count);
+                                break;
+                        }
+                    }
+                    //TODO: If it's formatting ("m"), insert into a colour buffer
+                    //and then use that when drawing the buffer. Bit shit but
+                    //programs expect to be able to insert text at cursor locations
+                    //with the current formatting.
+                    //
+                    //So actually it's more like the control sequence sets the current
+                    //format and the text inserted via "insertText" "paints" onto a
+                    //canvas.
+                } else if (controlKey === 'K') {
+                    this.clearLineRight();
+                } else if (controlKey === 'P') {
+                    this.clearLineRight();
+                } else if (controlKey === 'r') {
+                    // set top and bottom lines of view port
+                    // really we can simplify and take the top
+                    // and offset viewport by that in the buffer
+                    log.info({r: true, params});
+
+                    this.setScrollOffset(params[0] || 1);
+                } else if (controlKey === 'M') {
+                    this.setScrollOffset(this.scrollOffset - 1);
+                } else if (controlKey === 'J' && params[0] == '0') {
+                    this.clearLineRight();
+                    this.clearScreenDown();
+                } else if (controlKey === 'G') {
+                    this.setCursor(this.cursor.y, params[0]);
                 }
+
+                log.info({controlKey, count, whole_match: action.whole_match});
+
+                stats[controlKey] = typeof stats[controlKey] !== 'undefined'
+                    ? stats[controlKey] + 1
+                    : 0;
+
+                log.info({stats});
+
                 handled = true
                 break;
         }
-
-        log.info(action);
     }
 
-    // TODO: Accept offsets into the terminal
-    //   TODO: Scroll to latest
+    // TODO: Scroll to latest
     // TODO: Formatting
-    drawSubTerminal(w, h) {
+    drawSubTerminal(w, h, isFocussed) {
         const lines = [];
 
+        log.info({scroll: this.scrollOffset});
+
         for (let i = 0; i < h; i++) {
-            const start = i * this.dimension.w;
-            lines.push(this.buffer.slice(start, start + this.dimension.w));
+            const start = (i + this.scrollOffset) * this.dimension.w;
+            let line = this.buffer.slice(start, start + this.dimension.w).slice(0, w);
+
+            if (i === this.cursor.y && isFocussed) {
+                line = line.slice(0, this.cursor.x) + '_' + line.slice(this.cursor.x + 1);
+            }
+
+            lines.push(line);
         }
 
         return lines;
@@ -199,10 +334,15 @@ class SubTerminal {
         //
         // this means we set the offset of the viewport
         // to the start of the buffer?
+        //
+
+        if (text.match(/\u001b/)) {
+            log.error(new Error('insertText ESC ' + text));
+        }
 
         const bufX = this.cursor.x;
-        const bufY = this.cursor.y;
-        //log.info({insertText: text, bufX, bufY});
+        const bufY = this.cursor.y + this.scrollOffset;
+        log.info({insertText: text, bufX, bufY});
 
         const bufIx = bufX + bufY * this.dimension.w;
 
@@ -223,6 +363,38 @@ class SubTerminal {
     }
 
     write(data) {
+        this.inputBuffer.write(data, this.inputBufferIndex);
+        this.inputBufferIx += data.length;
+
+        //if data consumable, consume it
+        //
+        // data is consumable if
+        //    A there are no ESC
+        // or B there are ESCs and there are actions for it
+
+        let consume = false;
+
+        const buffered = this.inputBuffer.slice(0, this.inputBufferIx).toString();
+
+        if (!buffered.match(/\u001b/)) {
+            consume = true;
+            log.info({ consume, message: 'text to consume', t: buffered});
+        } else {
+            const result = this.getActionFor(this.inputBuffer);
+            if (result.action) {
+                consume = true;
+            }
+            log.info({ consume, message: 'action consume', t: buffered, len: buffered.length});
+        }
+
+        if (consume) {
+            this.consume(this.inputBuffer.slice(0, this.inputBufferIx));
+            this.inputBuffer = Buffer.alloc(this.dimension.w);
+            this.inputBufferIx = 0;
+        }
+    }
+
+    consume(data) {
         let offset = 0;
         let action;
         const results = [];
@@ -244,7 +416,6 @@ class SubTerminal {
                 results.push({
                     type: 'TEXT',
                     ACTION: true,
-                    //data: data.slice(offset).toString('utf8'),
                     text: data.slice(offset, offset + result.start).toString('utf8')
                 });
             }
@@ -257,22 +428,34 @@ class SubTerminal {
         }
 
         results.forEach(a => this.reduce(a));
+
+        // TODO: Render only this sub terminal
+        // ultra-TODO: render only bits of this sub terminal that changed
+        render();
     }
 }
+
+var os = require('os');
+var pty = require('node-pty');
+
+var shell = os.platform() === 'win32' ? 'powershell.exe' : 'bash';
 
 function newShell() {
 
     // Fork a process
     //
-    //const proc = child_process.spawn('vim');
-    // TODO: Do this inside SubTerminal
-    const proc = child_process.spawn('vim')
+    const proc = pty.spawn(shell, [], {
+      name: 'xterm-color',
+      cols: 80,
+      rows: 30,
+      cwd: process.env.HOME,
+        //env: process.env
+    });
 
     const st = new SubTerminal(proc);
 
     subTerminals[st.id] = st;
-
-    proc.stdout.on('data', (data) => {
+    proc.on('data', (data) => {
         st.write(data);
     });
 
@@ -381,17 +564,11 @@ function reduceWorkspaces(state, action) {
 }
 let state;
 function applyAction(action) {
-    clearScreen();
+    //clearScreen();
     state = reduce(state, action);
-    log.info(action);
 }
 
 let subTerminals = {};
-
-function resizeSubTerminals() {
-    // Assume every terminal has changed size
-    Object.values(subTerminals).forEach((st) => st.resize());
-}
 
 function clearScreen() {
     stdout.cursorTo(0,0);
@@ -519,6 +696,7 @@ function viewTransform(c) {
 }
 
 
+// TODO: Indicate selected shell somehow
 function drawBox(x, y, w, h, isTop) {
     const { x: viewX, y: viewY, w: viewW, h: viewH } = viewTransform({x, y, w, h});
 
@@ -549,14 +727,33 @@ function drawBuffer(x, y, w, h, shell_id) {
     let prevI = 0;
     let line = 1;
 
-    const lines = subTerminals[shell_id].drawSubTerminal(w - 2, h - 1);
+    const st = subTerminals[shell_id];
+    const fw = state.workspaces[state.focussed_workspace];
+
+    const isFocussed = state.mode > 0 && fw.shells && fw.shells.length && shell_id === fw.shells[fw.focussed_shell].id;
+
+    const lines = st.drawSubTerminal(w - 2, h - 1, isFocussed);
+
+    // This is a side-effect, TODO - move this somewhere else
+    st.resize(w - 2, h - 1);
+
+    if (isFocussed) {
+        stdout.write('\u001b[7m');
+    }
+
+    lines[lines.length - 1] = shell_id + lines[lines.length - 1].slice(10);
 
     lines.forEach((l) => {
         stdout.cursorTo(x, y + line);
+        // TODO: the sub terminal should be able to emit control
+        // sequences, and as such might need more than "w"
+        // easy way would be to draw the box second
         stdout.write(l.slice(0, w - 2));
 
         line++;
     });
+
+    stdout.write('\u001b[m');
 }
 
 function drawBoxesH(x, w, h, shells) {
@@ -599,15 +796,11 @@ function render() {
 
     // Render Layout 0
 
-    clearScreen();
-
     if (!state) return;
 
     const fw = state.workspaces[state.focussed_workspace];
 
     stdout.cursorTo(1, 1);
-    //   console.info(state);
-    //   console.info({l: fw.shells.map(k => k.id)});
 
     const startDivisions = fw.start_last_shell_index + 1;
     const endDivisions = fw.shells.length - startDivisions;
@@ -635,23 +828,33 @@ function render() {
 function onData(data) {
     const fc = data[0];
 
-    if (fc === 3) {
-        exit();
-    } else {
+    const action = mapKeyToAction(data);
+    if (action) {
+        // Stateful actions
+        applyAction(action);
+        render();
 
-        const action = mapKeyToAction(data);
-        if (action) {
-            applyAction(action);
+        log.info({state, action});
+
+        switch (action.type) {
+            case 'QUIT':
+                exit();
+                break;
+            case 'RESTART':
+                log.info({unimplemented: 'RESTART'});
+                break;
         }
+    }
 
-        if (!(state && state.mode)) {
-            Object.values(subTerminals)[0].proc.stdin.write(data);
-        }
+    if (!(state && state.mode)) {
+        const fw = state.workspaces[state.focussed_workspace];
 
-        startEffects(action);
-
+        const shell_id = fw.shells[fw.focussed_shell].id;
+        subTerminals[shell_id].proc.write(data);
         render();
     }
+
+    startEffects(action);
 }
 
 function start() {
@@ -677,13 +880,10 @@ function start() {
         // Send all terminals SIGWINCH
         //
 
-        resizeSubTerminals();
-
         render();
     });
 
     process.on('SIGINT', () => {
-        console.info('shmonad interrupted');
         exit();
     });
 
