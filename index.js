@@ -379,12 +379,11 @@ class SubTerminal {
             consume = true;
             log.info({ consume, message: 'text to consume', t: buffered});
         } else {
-            const forConsumption = buffered.slice(buffered.lastIndexOf('\u001b'));
-            const result = this.getActionFor(forConsumption);
+            const result = this.getActionFor(this.inputBuffer);
             if (result.action) {
                 consume = true;
             }
-            log.info({ fc: forConsumption, consume, message: 'action consume', len: buffered.length});
+            log.info({ consume, message: 'action consume', len: buffered.length});
         }
 
         if (consume) {
