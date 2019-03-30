@@ -729,18 +729,16 @@ function drawBuffer(x, y, w, h, shell_id) {
     const st = subTerminals[shell_id];
     const fw = state.workspaces[state.focussed_workspace];
 
-    const isFocussed = state.mode > 0 && fw.shells && fw.shells.length && shell_id === fw.shells[fw.focussed_shell].id;
+    const isFocussed = fw.shells && fw.shells.length && shell_id === fw.shells[fw.focussed_shell].id;
 
     const lines = st.drawSubTerminal(w - 2, h - 1, isFocussed);
 
     // This is a side-effect, TODO - move this somewhere else
     st.resize(w - 2, h - 1);
 
-    if (isFocussed) {
+    if (state.mode > 0 && isFocussed) {
         stdout.write('\u001b[7m');
     }
-
-    lines[lines.length - 1] = shell_id + lines[lines.length - 1].slice(10);
 
     lines.forEach((l) => {
         stdout.cursorTo(x, y + line);
