@@ -237,7 +237,6 @@ class SubTerminal {
                 } else if (controlKey === '\r') {
                     this.cursor.x = 0;
                 } else if (controlKey === '\n') {
-
                     this.newLine();
                 } else if (controlKey === '\b') {
                     this.cursor.x -= 1;
@@ -380,11 +379,12 @@ class SubTerminal {
             consume = true;
             log.info({ consume, message: 'text to consume', t: buffered});
         } else {
-            const result = this.getActionFor(this.inputBuffer);
+            const forConsumption = buffered.slice(buffered.lastIndexOf('\u001b'));
+            const result = this.getActionFor(forConsumption);
             if (result.action) {
                 consume = true;
             }
-            log.info({ consume, message: 'action consume', t: buffered, len: buffered.length});
+            log.info({ fc: forConsumption, consume, message: 'action consume', len: buffered.length});
         }
 
         if (consume) {
