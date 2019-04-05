@@ -76,7 +76,12 @@ class SubTerminal {
         // 4 bytes text, 1 byte format
         const w = 10000;
         const h = 10000;
-        this.buffer = Buffer.alloc(w * h, ' ');
+
+        // Lines of the buffer
+        this.buffer = {
+            // 0: String
+            // 2: String
+        };
 
         this.scrollOffset = 0;
 
@@ -98,11 +103,12 @@ class SubTerminal {
     }
 
     resize(cols, rows) {
+        //log.info({resize: { before: this.size}});
         if (this.size.cols === cols || this.size.rows === rows) return;
         this.size = { cols, rows };
 
         log.info({resize: this.size});
-        this.proc.resize(cols - 1, rows - 1);
+        this.proc.resize(cols, rows);
     }
 
     setCursor(y, x) {
@@ -134,18 +140,23 @@ class SubTerminal {
 
     clearBuffer() {
         const {w, h} = this.dimension;
-        this.buffer = Buffer.alloc(w * h, ' ');
+        this.buffer = {};
     }
 
     clearLineRight() {
         const {x, y} = this.cursor;
-        this.insertText(Buffer.alloc(this.dimension.w - x, ' ').toString());
-        this.setCursor(y, x);
+        this.buffer[y + this.scrollOffset] = this.buffer[y + this.scrollOffset].slice(0, this.cursor.x);
     }
 
     clearScreenDown() {
         const {x, y} = this.cursor;
-        this.buffer.copy(Buffer.alloc(this.dimension.w * (this.size.rows - y), ' '));
+        const top = {};
+        const keys = Object.keys(this.buffer);
+        const highestIx = parseInt(keys[keys.length - 1])
+        for (let i = y + this.scrollOffset; i < highestIx; i++) {
+            top[i] = this.buffer[i];
+        }
+        this.buffer = top;
     }
 
     newLine() {
@@ -218,7 +229,7 @@ class SubTerminal {
         }
     }
 
-    reduce(action) {
+    reduceTerminalAction(action) {
         let handled = false;
         switch (action.type) {
             case 'TEXT':
@@ -228,12 +239,20 @@ class SubTerminal {
                 const params = action.match[1].split(';').map((s) => parseInt(s));
                 const count = params[0] || 1;
                 const controlKey = action.match[2];
+
+                log.info({controlKey, whole_match: action.whole_match});
+
                 if (controlKey === 'H') {
+                    // TODO: less is expecting a smaller viewport - how does size compare
+                    // to the one we sent less (if any), could be the top and bottom border?
+                    //
                     if (action.match[1]) {
-                        this.setCursor(...params);
+                        this.setCursor(params[0] - 1, params[1] - 1);
                     } else {
                         this.setCursor(0, 0);
                     }
+                } else if (action.whole_match === '\u0007') {
+                    // bell
                 } else if (controlKey === '\r') {
                     this.cursor.x = 0;
                 } else if (controlKey === '\n') {
@@ -248,6 +267,7 @@ class SubTerminal {
                     this.clearBuffer();
                     this.setCursor(0, 0);
                 } else if (action.match[1] === '6' && controlKey === 'n') {
+                    // what
                     this.setCursor(3, 3);
                 } else if (controlKey && controlKey.match(/[ABCD]/)) {
                     if (count > 0) {
@@ -282,16 +302,21 @@ class SubTerminal {
                     // set top and bottom lines of view port
                     // really we can simplify and take the top
                     // and offset viewport by that in the buffer
-                    log.info({r: true, params});
+                    log.info({scroll: 'r', r: true, params});
 
-                    this.setScrollOffset(params[0] || 1);
+                    this.setScrollOffset((params[0] || 1) - 1);
                 } else if (controlKey === 'M') {
                     this.setScrollOffset(this.scrollOffset - 1);
                 } else if (controlKey === 'J' && params[0] == '0') {
                     this.clearLineRight();
                     this.clearScreenDown();
                 } else if (controlKey === 'G') {
-                    this.setCursor(this.cursor.y, params[0]);
+                    this.setCursor(this.cursor.y, params[0] - 1);
+                } else {
+                    if (controlKey === 'm') {
+                    } else {
+                        log.info({unsupported: { action, controlKey, params}})
+                    }
                 }
 
                 log.info({controlKey, count, whole_match: action.whole_match});
@@ -300,7 +325,7 @@ class SubTerminal {
                     ? stats[controlKey] + 1
                     : 0;
 
-                log.info({stats});
+                //log.info({stats});
 
                 handled = true
                 break;
@@ -314,15 +339,22 @@ class SubTerminal {
 
         log.info({scroll: this.scrollOffset});
 
+        log.info({size: this.size})
+
         for (let i = 0; i < h; i++) {
-            const start = (i + this.scrollOffset) * this.dimension.w;
-            let line = this.buffer.slice(start, start + this.dimension.w).slice(0, w);
+            let line = Buffer.alloc(this.size.cols, ' ');
+            let bufY = this.scrollOffset + i;
+
+            if (this.buffer[bufY]) {
+                // We're writing 0s onto this - which terminates the thing.
+                Buffer.from(this.buffer[bufY]).copy(line);
+            }
 
             if (i === this.cursor.y && isFocussed) {
                 line = line.slice(0, this.cursor.x) + '_' + line.slice(this.cursor.x + 1);
             }
 
-            lines.push(line);
+            lines.push(line.toString());
         }
 
         return lines;
@@ -331,35 +363,41 @@ class SubTerminal {
     insertText(text) {
         // Inserting in top left 0,0
         //
-        // this means we set the offset of the viewport
-        // to the start of the buffer?
-        //
+         // this means we set the offset of the viewport
+         // to the start of the buffer?
+         //
 
-        if (text.match(/\u001b/)) {
-            log.error(new Error('insertText ESC ' + text));
-        }
+         if (text.match(/\u001b/)) {
+             log.error(new Error('insertText ESC ' + text));
+         }
 
-        const bufX = this.cursor.x;
-        const bufY = this.cursor.y + this.scrollOffset;
-        log.info({insertText: text, bufX, bufY});
+         // TODO: variable width character buffer
+         //  - essentially: strings instead of a buffer
+         //  - it won't that expensive to expose a bunch of string objects
+         //  instead of lines in a buffer.
 
-        const bufIx = bufX + bufY * this.dimension.w;
+         const bufX = this.cursor.x;
+         const bufY = this.cursor.y + this.scrollOffset;
+         log.info({insertText: text, bufX, bufY});
 
-        if (bufIx > this.buffer.length) return;
+         // text could include cariage returns
+         //   \n moves down
+         //   \r goes back to start
 
-        // text could include cariage returns
-        //   \n moves down
-        //   \r goes back to start
+         try {
+             // TODO: Is -bufX needed
+             const t = text.slice(0, this.dimension.w - bufX);
 
-        try {
-            const t = text.slice(0, this.dimension.w - bufX);
+             const oldLine = this.buffer[bufY] || Buffer.alloc(this.dimension.w, ' ');
+             const newLine = oldLine.slice(0, bufX) + t + oldLine.slice(bufX  + t.length)
 
-            this.buffer.write(t, bufIx);
-            this.cursor.x += t.length;
-        } catch (e) {
-            log.info({e, bufIx, bufX, bufY});
-        }
-    }
+             this.buffer[bufY] = newLine;
+
+             this.cursor.x += t.length;
+         } catch (e) {
+             log.info({ERROR: {m: e.message, s: e.stack.split('\n')} , bufX, bufY});
+         }
+     }
 
     write(data) {
         this.inputBuffer.write(data, this.inputBufferIndex);
@@ -400,22 +438,24 @@ class SubTerminal {
         let lim = 1000
 
         while (offset !== -1 && lim > 0) {
-            const result = this.getActionFor(data.slice(offset));
+            const result = this.getActionFor(data.toString('utf8').slice(offset));
             if (!result.action) {
                 results.push({
                     type: 'TEXT',
                     NO_ACTION: true,
-                    text: data.slice(offset).toString('utf8')
+                    text: data.toString('utf8').slice(offset)
                 });
                 break;
             }
 
             // Insert text
+            //  if match start is greater than zero, add the text between 0
+            //  and the start of the match
             if (result.start > 0) {
                 results.push({
                     type: 'TEXT',
                     ACTION: true,
-                    text: data.slice(offset, offset + result.start).toString('utf8')
+                    text: data.toString('utf8').slice(offset, offset + result.start)
                 });
             }
 
@@ -426,7 +466,7 @@ class SubTerminal {
             lim--;
         }
 
-        results.forEach(a => this.reduce(a));
+        results.forEach(a => this.reduceTerminalAction(a));
 
         // TODO: Render only this sub terminal
         // ultra-TODO: render only bits of this sub terminal that changed
