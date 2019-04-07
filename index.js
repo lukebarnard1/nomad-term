@@ -111,9 +111,9 @@ function reduceCurrentWorkspace(state, action) {
             };
             break;
         case 'LAUNCH_SHELL':
-            // TODO: Launch and select shell
             newState = {
-                shells: [...shells, newShell()]
+                shells: [...shells, newShell()],
+                focussed_shell: shells.length
             };
             break;
         case 'CLOSE_FOCUSSED_SHELL':
