@@ -350,9 +350,6 @@ function drawBuffer(shell_id) {
 
     const lines = st.drawSubTerminal(w - 2, h - 1, isFocussed);
 
-    // This is a side-effect, TODO - move this somewhere else
-    st.resize(w - 2, h - 1);
-
     if (state.mode > 0 && isFocussed) {
         stdout.write('\u001b[7m');
     }
@@ -411,6 +408,9 @@ let areas = {};
 function setBufferArea(x, y, w, h, id) {
     areas[id] = {x, y, w, h}
     log.info({areas})
+
+    // This is a side-effect, TODO - move this somewhere else
+    subTerminals[id].resize(w - 2, h - 1);
 }
 
 function render() {

@@ -42,13 +42,20 @@ module.exports = class SubTerminal {
         this.dimension = {w, h}
     }
 
+    // TODO: WRAPPING!
     resize(cols, rows) {
-        //log.info({resize: { before: this.size}});
-        if (this.size.cols === cols || this.size.rows === rows) return;
+        if (this.size.cols === cols && this.size.rows === rows) return;
         this.size = { cols, rows };
 
         log.info({resize: this.size});
         this.proc.resize(cols, rows);
+
+        const before = this.scrollOffset
+        this.setScrollOffset(Object.keys(this.buffer).length - 1 - rows)
+        const after = this.scrollOffset
+        log.info({resize: {before, after}});
+
+        this.setCursor(this.cursor.y + (before - after), this.cursor.x)
     }
 
     setCursor(y, x) {
@@ -273,7 +280,6 @@ module.exports = class SubTerminal {
 
         log.info({scroll: this.scrollOffset});
 
-        log.info({size: this.size})
 
         for (let i = 0; i < h; i++) {
             let line = Buffer.alloc(this.size.cols, ' ');
