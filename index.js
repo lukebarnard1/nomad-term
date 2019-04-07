@@ -111,6 +111,7 @@ function reduceCurrentWorkspace(state, action) {
             };
             break;
         case 'LAUNCH_SHELL':
+            // TODO: Launch and select shell
             newState = {
                 shells: [...shells, newShell()]
             };
@@ -269,16 +270,6 @@ function mapKeyToAction(key) {
         '\u007f': {type: 'LAUNCH_SHELL'},
     }[key];
 }
-
-function startEffects(action) {
-    // Anything that affects state as a side-effect
-    //  - program
-    //  - child processes
-    //
-    // These will in turn generate actions that can alter
-    // state.
-}
-
 const VIEW_FRAME = {
     CORNER: {
         T: { L: '\u250c', R: '\u2510' },
@@ -329,8 +320,6 @@ function viewTransform(c) {
     return transformed;
 }
 
-
-// TODO: Indicate selected shell somehow
 function drawBox(x, y, w, h, isTop) {
     const { x: viewX, y: viewY, w: viewW, h: viewH } = viewTransform({x, y, w, h});
 
@@ -346,16 +335,7 @@ function drawBox(x, y, w, h, isTop) {
     drawEdgeH(viewX, viewY + viewH, viewW, false);
 }
 
-
-// TODO: This should allow for scrolling though the buffer
-// with a simple line offset. The offset is controlled by
-// either control sequences from the program. If the program
-// outputs anything, the scroll is reset to the bottom-most
-// position (offset 0), effectively showing the user the most
-// up-to-date "view" or "viewport" of the buffer. This means
-// that if the program doesn't give any new output when the
-// user scrolls, the offset should increase. This is down to
-// the simulated terminal.
+// TODO: User-controlled buffer scrolling
 function drawBuffer(shell_id) {
     if (!areas[shell_id]) return;
 
@@ -383,9 +363,6 @@ function drawBuffer(shell_id) {
         stdout.write(Buffer.alloc(w - 2, ' '));
 
         stdout.cursorTo(x, y + line);
-        // TODO: the sub terminal should be able to emit control
-        // sequences, and as such might need more than "w"
-        // easy way would be to draw the box second
         stdout.write(l.slice(0, w - 2));
 
         line++;
@@ -499,9 +476,6 @@ function onData(data) {
         const shell_id = fw.shells[fw.focussed_shell].id;
         subTerminals[shell_id].proc.write(data);
     }
-
-
-    startEffects(action);
 }
 
 function start() {
