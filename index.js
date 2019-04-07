@@ -182,10 +182,15 @@ function reduceWorkspaces(state, action) {
             : workspace
     );
 }
+
 let state;
 function applyAction(action) {
-    //clearScreen();
     state = reduce(state, action);
+
+    // Render borders, set sub terminal areas
+    render()
+    // Render all sub terminals
+    Object.keys(subTerminals).forEach(drawBuffer)
 }
 
 let subTerminals = {};
@@ -486,10 +491,6 @@ function onData(data) {
         subTerminals[shell_id].proc.write(data);
     }
 
-    // Render borders, set sub terminal areas
-    render()
-    // Render all sub terminals
-    Object.keys(subTerminals).forEach(drawBuffer)
 
     startEffects(action);
 }
@@ -525,7 +526,10 @@ function start() {
     });
 
     clearScreen();
-    render();
+
+    applyAction({
+        type: 'LAUNCH_SHELL'
+    });
 }
 
 start();
