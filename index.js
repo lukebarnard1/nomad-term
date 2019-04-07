@@ -118,7 +118,10 @@ function reduceCurrentWorkspace(state, action) {
         case 'CLOSE_FOCUSSED_SHELL':
             newState = {
                 // TODO: Update start_last_shell_index
-                shells: shells.filter((s, index) => index !== focussed_shell),
+                shells:
+                  shells.length === 1
+                    ? [newShell()]
+                    : shells.filter((s, index) => index !== focussed_shell),
                 focussed_shell: focussed_shell === 0 ? 0 : rotate(shells.length - 1, focussed_shell, -1),
             };
             break;
