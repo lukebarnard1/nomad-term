@@ -118,7 +118,6 @@ function reduceCurrentWorkspace(state, action) {
             break;
         case 'CLOSE_FOCUSSED_SHELL':
             newState = {
-                // TODO: Update start_last_shell_index
                 shells:
                   shells.length === 1
                     ? [newShell()]
@@ -424,7 +423,9 @@ function render() {
 
     stdout.cursorTo(1, 1);
 
-    const startDivisions = fw.start_last_shell_index + 1;
+    const startIndex = limit(fw.start_last_shell_index, 0, fw.shells.length - 1)
+
+    const startDivisions = startIndex + 1;
     const endDivisions = fw.shells.length - startDivisions;
 
     let w = 0;
@@ -446,7 +447,7 @@ function render() {
         drawBoxesH(0, w, h, fw.shells.slice(0, startDivisions));
     }
     if (w !== 100) {
-        drawBoxesH(w, 100 - w, h, fw.shells.slice(fw.start_last_shell_index + 1));
+        drawBoxesH(w, 100 - w, h, fw.shells.slice(startDivisions));
     }
 }
 
