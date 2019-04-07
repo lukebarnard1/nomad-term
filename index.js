@@ -145,6 +145,7 @@ class SubTerminal {
 
     clearLineRight() {
         const {x, y} = this.cursor;
+        if (!this.buffer[y + this.scrollOffset]) return;
         this.buffer[y + this.scrollOffset] = this.buffer[y + this.scrollOffset].slice(0, this.cursor.x);
     }
 
