@@ -303,6 +303,7 @@ module.exports = class SubTerminal {
 
          if (text.match(/\u001b/)) {
              log.error(new Error('insertText ESC ' + text));
+             return
          }
 
          // TODO: variable width character buffer
