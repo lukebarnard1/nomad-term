@@ -4,12 +4,12 @@ const { stdin, stdout } = process;
 const SubTerminal = require('./subterminal')
 const log = require('./log')
 
-function initWorkspace() {
+function initWorkspace(shells=[]) {
     return {
         focussed_shell: 0,
         layout: 0,
         scroll_position: 0,
-        shells: [],
+        shells,
         start_last_shell_index: 0,
         start_size_pct: 50,
     };
@@ -17,7 +17,7 @@ function initWorkspace() {
 
 const reduce = (state={
   mode: true,
-  workspaces: [ initWorkspace(), initWorkspace() ],
+  workspaces: [ initWorkspace() ],
   focussed_workspace: 0,
 }, action) => {
     return {
@@ -179,6 +179,11 @@ function reduceWorkspaces(state, action) {
             return workspace;
         });
 
+    // Selecting an empty workspace populates it with a shell
+    if (action.type === 'CURRENT_WORKSPACE_SELECT' && !newWorkspaces[action.destination]) {
+        newWorkspaces[action.destination] = initWorkspace([newShell()])
+    }
+
     return newWorkspaces.map(
         (workspace, index) => index === focussed_workspace
             ? reduceCurrentWorkspace(workspace, action)
@@ -188,6 +193,7 @@ function reduceWorkspaces(state, action) {
 
 let state;
 function applyAction(action) {
+    log.info({willApply: action})
     state = reduce(state, action);
 
     // Render borders, set sub terminal areas
