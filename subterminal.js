@@ -45,27 +45,22 @@ module.exports = class SubTerminal {
     // TODO: WRAPPING!
     resize(cols, rows) {
         if (this.size.cols === cols && this.size.rows === rows) return;
-        this.size = { cols, rows };
 
-        log.info({resize: this.size});
+        this.size = { cols, rows };
         this.proc.resize(cols, rows);
 
         const before = this.scrollOffset
         this.setScrollOffset(Object.keys(this.buffer).length - 1 - rows)
         const after = this.scrollOffset
-        log.info({resize: {before, after}});
 
         this.setCursor(this.cursor.y + (before - after), this.cursor.x)
     }
 
     setCursor(y, x) {
-
         const cappedX = Math.max(Math.min(x, this.size.cols), 0);
         const cappedY = Math.max(Math.min(y, this.size.rows), 0);
 
         this.cursor = {x: cappedX, y: cappedY};
-
-        log.info({cursor: this.cursor});
 
         this.checkScroll();
     }
@@ -115,13 +110,10 @@ module.exports = class SubTerminal {
     }
 
     checkScroll() {
-        log.info({c: this.cursor, scroll: this.scrollOffset, checkScroll: true});
         if (this.cursor.y > this.size.rows - 1) {
             const d = (this.cursor.y - (this.size.rows - 1))
-            log.info({scroll: this.scrollOffset, d, checkScrollChange: true, size: this.size});
 
             this.scrollOffset += d;
-
             this.cursor.y = this.size.rows - 1;
         }
     }
@@ -190,9 +182,6 @@ module.exports = class SubTerminal {
                 log.info({controlKey, whole_match: action.whole_match});
 
                 if (controlKey === 'H') {
-                    // TODO: less is expecting a smaller viewport - how does size compare
-                    // to the one we sent less (if any), could be the top and bottom border?
-                    //
                     if (action.match[1]) {
                         this.setCursor(params[0] - 1, params[1] - 1);
                     } else {
@@ -246,11 +235,6 @@ module.exports = class SubTerminal {
                 } else if (controlKey === 'P') {
                     this.clearLineRight();
                 } else if (controlKey === 'r') {
-                    // set top and bottom lines of view port
-                    // really we can simplify and take the top
-                    // and offset viewport by that in the buffer
-                    log.info({scroll: 'r', r: true, params});
-
                     this.setScrollOffset((params[0] || 1) - 1);
                 } else if (controlKey === 'M') {
                     this.setScrollOffset(this.scrollOffset - 1);
@@ -267,8 +251,6 @@ module.exports = class SubTerminal {
                     }
                 }
 
-                log.info({controlKey, count, whole_match: action.whole_match});
-
                 break;
         }
     }
@@ -277,9 +259,6 @@ module.exports = class SubTerminal {
     // TODO: Formatting
     drawSubTerminal(w, h, isFocussed) {
         const lines = [];
-
-        log.info({scroll: this.scrollOffset});
-
 
         for (let i = 0; i < h; i++) {
             let line = Buffer.alloc(this.size.cols, ' ');
@@ -311,11 +290,6 @@ module.exports = class SubTerminal {
              log.error(new Error('insertText ESC ' + text));
              return
          }
-
-         // TODO: variable width character buffer
-         //  - essentially: strings instead of a buffer
-         //  - it won't that expensive to expose a bunch of string objects
-         //  instead of lines in a buffer.
 
          const bufX = this.cursor.x;
          const bufY = this.cursor.y + this.scrollOffset;
