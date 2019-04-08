@@ -341,8 +341,8 @@ module.exports = class SubTerminal {
      }
 
     write(data) {
-        this.inputBuffer.write(data, this.inputBufferIndex);
-        this.inputBufferIx += data.length;
+        const ix = this.inputBuffer.indexOf(0)
+        this.inputBuffer.write(data, ix);
 
         //if data consumable, consume it
         //
@@ -352,23 +352,22 @@ module.exports = class SubTerminal {
 
         let consume = false;
 
-        const buffered = this.inputBuffer.slice(0, this.inputBufferIx).toString();
+        const buffered = this.inputBuffer.slice(0, ix).toString();
 
         if (!buffered.match(/\u001b/)) {
             consume = true;
-            log.info({ consume, message: 'text to consume', t: buffered});
         } else {
-            const result = this.getActionFor(this.inputBuffer);
+            // Make sure not to chop any unfinished control sequences
+            const escIx = this.inputBuffer.lastIndexOf("\u001b")
+            const result = this.getActionFor(this.inputBuffer.slice(escIx));
             if (result.action) {
                 consume = true;
             }
-            log.info({ consume, message: 'action consume', len: buffered.length});
         }
 
         if (consume) {
-            this.consume(this.inputBuffer.slice(0, this.inputBufferIx));
+            this.consume(this.inputBuffer.slice(0, ix));
             this.inputBuffer = Buffer.alloc(this.dimension.w);
-            this.inputBufferIx = 0;
         }
     }
 
