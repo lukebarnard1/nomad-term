@@ -34,7 +34,7 @@ module.exports = class SubTerminal {
         this.dimension = { w, h };
         this.size = { cols: w, rows: h};
 
-        this.inputBuffer = Buffer.alloc(w);
+        this.inputBuffer = Buffer.alloc(10000);
         this.inputBufferIx = 0;
     }
 
