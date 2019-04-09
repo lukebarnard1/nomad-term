@@ -315,8 +315,11 @@ module.exports = class SubTerminal {
      }
 
     write(data) {
-        const ix = this.inputBuffer.indexOf(0)
+        let ix = this.inputBuffer.indexOf(0)
+
         this.inputBuffer.write(data, ix);
+
+        ix = this.inputBuffer.indexOf(0)
 
         //if data consumable, consume it
         //
