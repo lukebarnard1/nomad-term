@@ -510,6 +510,7 @@ function start() {
     });
 
     clearScreen();
+    // TODO: hide cursor ESC [ ? 25 l
 
     applyAction({
         type: 'LAUNCH_SHELL'
