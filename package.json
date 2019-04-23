@@ -1,8 +1,8 @@
 {
-  "name": "shmonad",
+  "name": "nomad-term",
   "version": "1.0.0",
   "main": "index.js",
-  "author": "me",
+  "author": "Luke Barnard <luke@lukebarnard.co.uk>",
   "license": "Apache-2.0",
   "dependencies": {
     "node-pty": "^0.8.1"
