@@ -1,8 +1,17 @@
 const path = require('path');
 const fs = require('fs');
 
-const logPath = path.join(path.join(__dirname, 'logs'), 'info.log');
+const logDir = path.join(__dirname, 'logs')
+const logPath = path.join(logDir, 'nomad.log');
+
+try {
+    fs.accessSync(logDir, fs.constants.F_OK);
+} catch (err) {
+    fs.mkdirSync(logDir)
+}
+
 const stream = fs.createWriteStream(logPath, {flags: 'a'});
+
 const log = {
     info: (o) => stream.write(JSON.stringify(o) + '\n'),
     error: (e) => stream.write(JSON.stringify({
