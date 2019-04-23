@@ -212,7 +212,6 @@ function clearScreen() {
 
 function exit() {
     clearScreen();
-    console.info('shmonad exiting');
     process.exit();
 }
 
@@ -480,7 +479,7 @@ function onData(data) {
 function start() {
     //////////////////////////////////////////////////////////////
     //
-    // shmonad.js
+    // nomad-term
     //
     // i like xmonad, ok.
     //
@@ -493,13 +492,9 @@ function start() {
     //    pinning the viewport to the most recent panes-worth of
     //    output when handling them.
     //
-    //
     stdin.setRawMode(true);
     stdin.on('data', onData);
     stdout.on('resize', () => {
-        // Send all terminals SIGWINCH
-        //
-
         render();
     });
 
