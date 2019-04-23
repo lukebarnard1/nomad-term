@@ -1,7 +1,7 @@
 
 const { stdin, stdout } = process;
 
-const SubTerminal = require('./subterminal')
+const { SubTerminal } = require('./subterminal')
 const log = require('./log')
 
 function initWorkspace(shells=[]) {
@@ -347,19 +347,17 @@ function drawBuffer(shell_id) {
     const fw = state.workspaces[state.focussed_workspace];
 
     const isFocussed = fw.shells && fw.shells.length && shell_id === fw.shells[fw.focussed_shell].id;
+    const highlight = state.mode > 0 && isFocussed
 
-    const lines = st.drawSubTerminal(w - 2, h - 1, isFocussed);
-
-    if (state.mode > 0 && isFocussed) {
-        stdout.write('\u001b[7m');
-    }
+    const lines = st.drawSubTerminal(w - 2, h - 1, {isFocussed, highlight});
 
     lines.forEach((l) => {
         stdout.cursorTo(x, y + line);
+        stdout.write('\u001b[m');
         stdout.write(Buffer.alloc(w - 2, ' '));
 
         stdout.cursorTo(x, y + line);
-        stdout.write(l.slice(0, w - 2));
+        stdout.write(l);
 
         line++;
     });

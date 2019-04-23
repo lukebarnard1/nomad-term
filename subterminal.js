@@ -5,7 +5,7 @@ function uniqueId() {
     return Math.random().toString(36).slice(2);
 }
 
-module.exports = class SubTerminal {
+class SubTerminal {
     constructor(proc, cb) {
         this.id = uniqueId();
         this.proc = proc;
@@ -21,6 +21,18 @@ module.exports = class SubTerminal {
         this.buffer = {
             // 0: String
             // 2: String
+        };
+
+        this.formatBuffer = {
+            // 0: {
+            //   fg: {
+            //     color: 123,
+            //     bright: false,
+            //   },
+            //   bg: { ... },
+            //   underline: false,
+            //   negative: false
+            // }
         };
 
         this.scrollOffset = 0;
@@ -73,6 +85,89 @@ module.exports = class SubTerminal {
         }
     }
 
+
+    setFormat(params) {
+        // Set the current parameters for the format of inserted text
+        const newFormat = (params.length === 0) ? {} : this.format;
+
+        let change = {
+            4:  { underline: true },
+            24: { underline: false },
+            7:  { negative: true },
+            27: { negative: false },
+        }[params[0]];
+
+        const colors = [
+            'black',
+            'red',
+            'green',
+            'yellow',
+            'blue',
+            'magenta',
+            'cyan',
+            'white',
+            // Last two are special
+            'extended', // takes multiple parameters
+            'default'   // resets to default
+        ]
+
+        // 30 - 39 foreground non-bold
+        // 90 - 97 foreground bold
+        // 40 - 49 background non-bold
+        // 100 - 107 background bold
+        let fg, bright, start;
+        if (params[0] === 1) {
+            fg = true
+            bright = true
+            start = 1
+        }
+        if (params[0] >= 30 && params[0] <= 39) {
+            fg = true
+            bright = false
+            start = 30
+        } else
+        if (params[0] >= 90 && params[0] <= 97) {
+            fg = true
+            bright = true
+            start = 90
+        } else
+        if (params[0] >= 40 && params[0] <= 49) {
+            fg = false
+            bright = false
+            start = 40
+        } else
+        if (params[0] >= 100 && params[0] <= 107) {
+            fg = true
+            bright = true
+            start = 100
+        }
+
+        if (start) {
+            const colorIx = params[0] - start
+            const color = colors[colorIx]
+
+            if (color === 'default') {
+                change = fg ? { fg: {} } : { bg: {} }
+            } else
+            if (color === 'extended') {
+                // assumes 256 colors
+                const color = params[2]
+                change = fg ? { fg: { color } } : { bg: { color } }
+            } else {
+                /*
+                change = fg ? {
+                    fg: { bright, color }
+                } : {
+                    bg: { bright, color }
+                }
+                */
+            }
+        }
+
+        // This is a new object everytime, so we can reuse this.format
+        this.format = {...newFormat, ...change}
+    }
+
     moveCursor(y, x) {
         this.cursor.x += x;
         this.cursor.y += y;
@@ -83,23 +178,35 @@ module.exports = class SubTerminal {
     clearBuffer() {
         const {w, h} = this.dimension;
         this.buffer = {};
+        this.formatBuffer = {};
     }
 
     clearLineRight() {
         const {x, y} = this.cursor;
-        if (!this.buffer[y + this.scrollOffset]) return;
-        this.buffer[y + this.scrollOffset] = this.buffer[y + this.scrollOffset].slice(0, this.cursor.x);
+        const bufY = y + this.scrollOffset;
+
+        if (!this.buffer[bufY]) return;
+        this.buffer[bufY] = this.buffer[bufY].slice(0, this.cursor.x);
+
+        this.addFormat(bufY, {
+            start: this.cursor.x,
+            length: this.dimension.w,
+            format: {}
+        })
     }
 
     clearScreenDown() {
         const {x, y} = this.cursor;
         const top = {};
+        const formatTop = {};
         const keys = Object.keys(this.buffer);
         const highestIx = parseInt(keys[keys.length - 1])
         for (let i = y + this.scrollOffset; i < highestIx; i++) {
             top[i] = this.buffer[i];
+            formatTop[i] = this.formatBuffer[i];
         }
         this.buffer = top;
+        this.formatBuffer = formatTop;
     }
 
     newLine() {
@@ -175,7 +282,10 @@ module.exports = class SubTerminal {
                 this.insertText(action.text);
                 break;
             case 'CONTROL':
-                const params = action.match[1].split(';').map((s) => parseInt(s));
+                const paramString = action.match[1]
+                const params = paramString.length > 0
+                    ? paramString.split(';').map((s) => parseInt(s))
+                    : []
                 const count = params[0] || 1;
                 const controlKey = action.match[2];
 
@@ -246,6 +356,7 @@ module.exports = class SubTerminal {
                     this.setCursor(this.cursor.y, params[0] - 1);
                 } else {
                     if (controlKey === 'm') {
+                        this.setFormat(params)
                     } else {
                         log.info({unsupported: { action, controlKey, params}})
                     }
@@ -256,8 +367,7 @@ module.exports = class SubTerminal {
     }
 
     // TODO: Scroll to latest
-    // TODO: Formatting
-    drawSubTerminal(w, h, isFocussed) {
+    drawSubTerminal(w, h, {highlight, isFocussed}) {
         const lines = [];
 
         for (let i = 0; i < h; i++) {
@@ -265,18 +375,63 @@ module.exports = class SubTerminal {
             let bufY = this.scrollOffset + i;
 
             if (this.buffer[bufY]) {
-                // We're writing 0s onto this - which terminates the thing.
-                Buffer.from(this.buffer[bufY]).copy(line);
+                line = this.buffer[bufY].toString('utf8').slice(0, this.size.cols)
             }
 
+            // TODO: allow programs to hide cursor
             if (i === this.cursor.y && isFocussed) {
                 line = line.slice(0, this.cursor.x) + '_' + line.slice(this.cursor.x + 1);
             }
 
-            lines.push(line.toString());
+            let formats = this.formatBuffer[bufY] || []
+
+            if (highlight) {
+                formats = [{start: 0, length: this.size.cols, format: {bg: {color: 7}}}]
+            }
+
+            line = this.applyFormats(line, formats.map(k => k))
+
+            lines.push(line);
         }
 
         return lines;
+    }
+
+    applyFormats(str, formats=[]) {
+        const endSeq = '\u001b[m'
+        str = str.toString('utf8')
+
+        let result = ''
+        let cursorIx = 0
+
+        let first = formats.shift()
+
+        while (first) {
+            result += str.slice(cursorIx, first.start)
+            result += getFormatSeq(first.format)
+            result += str.slice(first.start, first.start + first.length)
+            result += endSeq
+
+            cursorIx = first.start + first.length
+            first = formats.shift()
+        }
+
+        result += str.slice(cursorIx)
+
+        function getFormatSeq(format) {
+            const startSeq = (...params) => "\u001b[" + params.join(';') + "m"
+            let res = ""
+
+            if (format.bg && format.bg.color) {
+                res += startSeq(48, 5, format.bg.color)
+            }
+            if (format.fg && format.fg.color) {
+                res += startSeq(38, 5, format.fg.color)
+            }
+            return res
+        }
+
+        return result
     }
 
     insertText(text) {
@@ -303,16 +458,33 @@ module.exports = class SubTerminal {
              // TODO: Is -bufX needed
              const t = text.slice(0, this.dimension.w - bufX);
 
-             const oldLine = this.buffer[bufY] || Buffer.alloc(this.dimension.w, ' ');
+             let oldLine = this.buffer[bufY] || Buffer.alloc(this.size.cols, ' ');
+
+             if (bufX + t.length - oldLine.length > 0) {
+                 oldLine = oldLine + Buffer.alloc(bufX + t.length - oldLine.length, ' ').toString('utf8')
+             }
+
              const newLine = oldLine.slice(0, bufX) + t + oldLine.slice(bufX  + t.length)
 
              this.buffer[bufY] = newLine;
+
+             if (t.length > 0) {
+                 this.addFormat(bufY, {
+                     start: bufX,
+                     length: t.length,
+                     format: this.format
+                 })
+             }
 
              this.cursor.x += t.length;
          } catch (e) {
              log.info({ERROR: {m: e.message, s: e.stack.split('\n')} , bufX, bufY});
          }
-     }
+    }
+
+    addFormat(bufY, format) {
+        this.formatBuffer[bufY] = reduceFormats(this.formatBuffer[bufY], format)
+    }
 
     write(data) {
         let ix = this.inputBuffer.indexOf(0)
@@ -393,3 +565,146 @@ module.exports = class SubTerminal {
     }
 }
 
+
+function removeAdjacent(fs) {
+    const hashes = fs.map(f => JSON.stringify(f.format))
+    const before = fs.map(f => f)
+
+    const stack = []
+
+    hashes.forEach((h, ix) => {
+        const top = stack.pop()
+        if (!top) {
+            stack.push(fs[ix])
+            return
+        }
+
+        const stackHash = JSON.stringify(top.format)
+
+        if (stackHash === h && fs[ix].start === top.start + top.length) {
+            top.length += fs[ix].length
+            stack.push(top)
+        } else {
+            stack.push(top)
+            stack.push(fs[ix])
+        }
+    })
+
+    return stack
+}
+
+// TODO: Put this in it's own file
+function reduceFormats(formats=[], format) {
+    if (!format) return formats;
+
+    const within = (pos) => pos > format.start && pos < format.start + format.length
+
+    const intersecting = (a, b) => {
+        const sA = a.start
+        const sB = b.start
+        const fA = a.start + a.length
+        const fB = b.start + b.length
+
+        return sA > sB && sA < fB
+            || sB > sA && sB < fA
+            || fA > sB && fA < fB
+            || fB > sA && fB < fA
+    }
+
+    if (formats.length === 0) return [format]
+
+    const intersectingFormats = formats
+        .sort((a, b) => a.start - b.start)
+        .filter(f => {
+            return intersecting(f, format)
+        })
+    const nonIntersectingFormats = formats
+        .sort((a, b) => a.start - b.start)
+        .filter(f => {
+            return !intersecting(f, format)
+        })
+
+    const newIntersectingFormats = intersectingFormats.map(f => {
+
+        // Diagrams to show the insertion of format and
+        // it's effect on existing formats, f and the resulting
+        // formats, r.
+        //
+        // format         |---------|
+        // f0:              |--|
+        // r0:            |---------|
+        //
+        // f1: |------------------------------|
+        // r1: |----------|---------|---------|
+        //
+        // f2:                   |--------------|
+        // r2:            |---------|-----------|
+        //
+        // f3: |--------------|
+        // r3: |----------|---------|
+
+        const startWithin = within(f.start)
+        const endWithin = within(f.start + f.length)
+
+        // f0
+        if (startWithin && endWithin) return []
+
+        const fs = []
+        let both = false
+
+        if (f.start === format.start && f.length === format.length) {
+            return []
+        }
+
+        // f1
+        if (!startWithin && !endWithin) {
+            both = true
+        }
+
+        let newStart, newLength
+        // f2
+        if (startWithin || both) {
+            newStart = format.start + format.length
+            newLength = f.start + f.length - newStart
+
+            if (newLength > 0)
+                fs.push({
+                    start: newStart,
+                    length: newLength,
+                    format: f.format
+                })
+        }
+
+        // f3
+        if (endWithin || both) {
+            newStart = f.start
+            newLength = format.start - f.start
+
+            if (newLength > 0)
+                fs.push({
+                    start: newStart,
+                    length: newLength,
+                    format: f.format
+                })
+        }
+        return fs
+    }).reduce((a,b) => a.concat(b), [])
+
+    const result = [ ... nonIntersectingFormats, ... newIntersectingFormats, format].sort((a, b) => a.start - b.start)
+
+    // TODO: Figure out why there are duplicates in the first place instead
+    // of removing them
+    //
+    // Remove duplictes (bug)
+    result.forEach((f, ix) => {
+        result.forEach((f2, ix2) => {
+            if (ix === ix2 || !f2 || !f) return
+            if (f.start === f2.start && f.length === f2.length) {
+                result[ix2] = null
+            }
+        })
+    })
+
+    return removeAdjacent(result.filter(f => f !== null))
+}
+module.exports = { SubTerminal, reduceFormats }
