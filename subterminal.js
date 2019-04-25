@@ -7,19 +7,24 @@ function uniqueId() {
     return Math.random().toString(36).slice(2);
 }
 
+function createSubTerminal(renderCb) {
+    const shell = os.platform() === 'win32' ? 'powershell.exe' : 'bash';
+    const proc = pty.spawn(shell, [], {
+      name: 'xterm-color',
+      cols: 80,
+      rows: 30,
+      cwd: process.env.HOME,
+    });
+    const st = new SubTerminal(proc, renderCb);
+    proc.on('data', data => st.write(data));
+
+    return st
+}
+
 class SubTerminal {
-    constructor(cb) {
+    constructor(proc, cb) {
         this.id = uniqueId();
-
-        const shell = os.platform() === 'win32' ? 'powershell.exe' : 'bash';
-        this.proc = pty.spawn(shell, [], {
-          name: 'xterm-color',
-          cols: 80,
-          rows: 30,
-          cwd: process.env.HOME,
-        });
-        this.proc.on('data', data => this.write(data));
-
+        this.proc = proc
         this.renderCb = () => cb(this.id);
 
         // The last width x height characters are the viewport
@@ -717,4 +722,4 @@ function reduceFormats(formats=[], format) {
 
     return removeAdjacent(result.filter(f => f !== null))
 }
-module.exports = { SubTerminal, reduceFormats }
+module.exports = { createSubTerminal, reduceFormats }

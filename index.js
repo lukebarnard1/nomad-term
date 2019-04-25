@@ -1,7 +1,7 @@
 
 const { stdin, stdout } = process;
 
-const { SubTerminal } = require('./subterminal')
+const { createSubTerminal } = require('./subterminal')
 const log = require('./log')
 
 function initWorkspace(shells=[]) {
@@ -51,7 +51,7 @@ function limit(value, lower, upper) {
 }
 
 function newShell() {
-    const st = new SubTerminal(drawBuffer);
+    const st = createSubTerminal(drawBuffer);
 
     subTerminals[st.id] = st;
 
