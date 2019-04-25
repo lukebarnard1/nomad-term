@@ -53,33 +53,10 @@ function limit(value, lower, upper) {
 
 const stats = {};
 
-var os = require('os');
-var pty = require('node-pty');
-
-var shell = os.platform() === 'win32' ? 'powershell.exe' : 'bash';
-
 function newShell() {
-
-    // Fork a process
-    //
-    const proc = pty.spawn(shell, [], {
-      name: 'xterm-color',
-      cols: 80,
-      rows: 30,
-      cwd: process.env.HOME,
-        //env: process.env
-    });
-
-    const st = new SubTerminal(proc, drawBuffer);
+    const st = new SubTerminal(drawBuffer);
 
     subTerminals[st.id] = st;
-    proc.on('data', (data) => {
-        st.write(data);
-    });
-
-    proc.on('close', () => {
-        //st.write('\n\n\nprocess exited\n');
-    });
 
     return { id: st.id };
 }

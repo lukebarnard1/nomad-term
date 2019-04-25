@@ -1,14 +1,24 @@
 
+const pty = require('node-pty');
 const log = require('./log')
+const os = require('os');
 
 function uniqueId() {
     return Math.random().toString(36).slice(2);
 }
 
 class SubTerminal {
-    constructor(proc, cb) {
+    constructor(cb) {
         this.id = uniqueId();
-        this.proc = proc;
+
+        const shell = os.platform() === 'win32' ? 'powershell.exe' : 'bash';
+        this.proc = pty.spawn(shell, [], {
+          name: 'xterm-color',
+          cols: 80,
+          rows: 30,
+          cwd: process.env.HOME,
+        });
+        this.proc.on('data', data => this.write(data));
 
         this.renderCb = () => cb(this.id);
 
