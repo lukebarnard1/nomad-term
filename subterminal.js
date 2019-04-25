@@ -356,14 +356,6 @@ class SubTerminal {
                                 break;
                         }
                     }
-                    //TODO: If it's formatting ("m"), insert into a colour buffer
-                    //and then use that when drawing the buffer. Bit shit but
-                    //programs expect to be able to insert text at cursor locations
-                    //with the current formatting.
-                    //
-                    //So actually it's more like the control sequence sets the current
-                    //format and the text inserted via "insertText" "paints" onto a
-                    //canvas.
                 } else if (controlKey === 'K') {
                     this.clearLineRight();
                 } else if (controlKey === 'P') {
