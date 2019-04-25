@@ -4,6 +4,9 @@
   "main": "index.js",
   "author": "Luke Barnard <luke@lukebarnard.co.uk>",
   "license": "Apache-2.0",
+  "scripts": {
+      "test": "node test.js"
+  },
   "dependencies": {
     "node-pty": "^0.8.1"
   }
