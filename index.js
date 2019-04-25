@@ -443,6 +443,13 @@ function onData(data) {
     if (!(state && state.mode)) {
         const fw = state.workspaces[state.focussed_workspace];
 
+        // TODO: This is a potential attack vector - if an attacking program
+        // can control which shell is focussed, it could potentially redirect
+        // user input to another shell, e.g. when the user is entering a password
+        //
+        // One mitigation would be to reduce the posibility of other state changing
+        // when state.mode is enabled. This is currently done explicitly for each
+        // part of reduced state
         const shell_id = fw.shells[fw.focussed_shell].id;
         subTerminals[shell_id].proc.write(data);
     }
