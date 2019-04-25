@@ -25,6 +25,13 @@ function createSubTerminal(renderCb) {
     return st
 }
 
+// TODO: Make SubTerminal much easier to test
+// TODO: Add tests for
+//        - text buffer insertion
+//        - scrolling
+//        - clearing the screen
+//        - inserting formats
+// TODO: Make vim scrolling work
 class SubTerminal {
     constructor(writeProcCb, resizeCb, renderCb) {
         this.id = uniqueId();
