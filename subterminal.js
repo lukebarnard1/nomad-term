@@ -207,7 +207,6 @@ class SubTerminal {
     }
 
     clearBuffer() {
-        const {w, h} = this.dimension;
         this.buffer = {};
         this.formatBuffer = {};
     }
