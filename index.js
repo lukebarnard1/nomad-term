@@ -51,8 +51,6 @@ function limit(value, lower, upper) {
     return value;
 }
 
-const child_process = require('child_process');
-
 const stats = {};
 
 var os = require('os');
