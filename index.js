@@ -51,8 +51,6 @@ function limit(value, lower, upper) {
     return value;
 }
 
-const stats = {};
-
 function newShell() {
     const st = new SubTerminal(drawBuffer);
 
