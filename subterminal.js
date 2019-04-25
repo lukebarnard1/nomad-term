@@ -26,11 +26,11 @@ function createSubTerminal(renderCb) {
 }
 
 class SubTerminal {
-    constructor(writeProcCb, resizeCb, cb) {
+    constructor(writeProcCb, resizeCb, renderCb) {
         this.id = uniqueId();
         this.writeProcCb = writeProcCb
         this.resizeCb = resizeCb
-        this.renderCb = () => cb(this.id);
+        this.renderCb = () => renderCb(this.id);
 
         // The last width x height characters are the viewport
         // 4 bytes text, 1 byte format
