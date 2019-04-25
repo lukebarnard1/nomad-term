@@ -15,16 +15,21 @@ function createSubTerminal(renderCb) {
       rows: 30,
       cwd: process.env.HOME,
     });
-    const st = new SubTerminal(proc, renderCb);
+    const st = new SubTerminal(
+        proc.write.bind(proc),
+        proc.resize.bind(proc),
+        renderCb
+    );
     proc.on('data', data => st.write(data));
 
     return st
 }
 
 class SubTerminal {
-    constructor(proc, cb) {
+    constructor(writeProcCb, resizeCb, cb) {
         this.id = uniqueId();
-        this.proc = proc
+        this.writeProcCb = writeProcCb
+        this.resizeCb = resizeCb
         this.renderCb = () => cb(this.id);
 
         // The last width x height characters are the viewport
@@ -65,6 +70,10 @@ class SubTerminal {
         this.inputBufferIx = 0;
     }
 
+    writeToProc(data) {
+        this.writeProcCb(data)
+    }
+
     setDimension({w,h}) {
         this.dimension = {w, h}
     }
@@ -74,7 +83,7 @@ class SubTerminal {
         if (this.size.cols === cols && this.size.rows === rows) return;
 
         this.size = { cols, rows };
-        this.proc.resize(cols, rows);
+        this.resizeCb(cols, rows);
 
         const before = this.scrollOffset
         this.setScrollOffset(Object.keys(this.buffer).length - 1 - rows)

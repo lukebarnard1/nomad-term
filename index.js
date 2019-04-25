@@ -451,7 +451,7 @@ function onData(data) {
         // when state.mode is enabled. This is currently done explicitly for each
         // part of reduced state
         const shell_id = fw.shells[fw.focussed_shell].id;
-        subTerminals[shell_id].proc.write(data);
+        subTerminals[shell_id].writeToProc(data);
     }
 }
 
