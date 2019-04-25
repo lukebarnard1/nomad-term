@@ -21,7 +21,6 @@ const reduce = (state={
   focussed_workspace: 0,
 }, action) => {
     return {
-        ...state,
         mode: reduceMode(state, action),
         workspaces: state.mode ? reduceWorkspaces(state, action) : state.workspaces,
         focussed_workspace: state.mode ? reduceFocussedWorkspace(state, action) : state.focussed_workspace,
