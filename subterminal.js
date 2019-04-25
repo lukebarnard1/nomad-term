@@ -226,7 +226,7 @@ class SubTerminal {
     }
 
     clearScreenDown() {
-        const {x, y} = this.cursor;
+        const {y} = this.cursor;
         const top = {};
         const formatTop = {};
         const keys = Object.keys(this.buffer);
