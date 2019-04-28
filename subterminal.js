@@ -185,13 +185,11 @@ class SubTerminal {
                 const color = params[2]
                 change = fg ? { fg: { color } } : { bg: { color } }
             } else {
-                /*
                 change = fg ? {
-                    fg: { bright, color }
+                    fg: { bright, color: colorIx }
                 } : {
-                    bg: { bright, color }
+                    bg: { bright, color: colorIx }
                 }
-                */
             }
         }
 
