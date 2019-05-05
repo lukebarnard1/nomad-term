@@ -262,7 +262,7 @@ class SubTerminal {
         // TODO:  do 7 and 8 need to be controlKeys?
         const patterns = [
             /\u001b\[?=?()([0-9]*[0-9;]*)([ABCcDGgrsuPHfrMmtJKgnhl=])/,
-            /\u001b()()([78])/,
+            /\u001b()()([78ABCDEFGHIJK])/,
             /\u001b()([\(\)][AB012])/,
             /\u001b\[\?()([0-9]*[lh])/,
             /()()([\r\n\b\t])/,
