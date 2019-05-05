@@ -100,10 +100,9 @@ class SubTerminal {
     }
 
     setCursor(y, x) {
-        const cappedX = Math.max(Math.min(x, this.size.cols), 0);
-        const cappedY = Math.max(Math.min(y, this.size.rows), 0);
+        this.cursor = { x, y }
 
-        this.cursor = {x: cappedX, y: cappedY};
+        log.info({cursor: this.cursor})
 
         this.checkScroll();
     }
@@ -197,11 +196,18 @@ class SubTerminal {
         this.format = {...newFormat, ...change}
     }
 
-    moveCursor(y, x) {
-        this.cursor.x += x;
-        this.cursor.y += y;
+    moveCursor(y, x, capped) {
+        log.info({moveCursor: {x,y,capped}})
+        if (!capped) {
+            this.cursor.x += x;
+            this.cursor.y += y;
+            this.checkScroll();
+        } else {
+            const cappedX = Math.max(Math.min(this.cursor.x + x, this.size.cols), 0);
+            const cappedY = Math.max(Math.min(this.cursor.y + y, this.size.rows), 0);
 
-        this.checkScroll();
+            this.cursor = {x: cappedX, y: cappedY};
+        }
     }
 
     clearBuffer() {
@@ -209,27 +215,52 @@ class SubTerminal {
         this.formatBuffer = {};
     }
 
-    clearLineRight() {
+    clearEntireLine() {
+        const {x, y} = this.cursor;
+        const bufY = y + this.scrollOffset;
+
+        this.buffer[bufY] = undefined
+        this.formatBuffer[bufY] = undefined
+    }
+
+    clearLine(right) {
         const {x, y} = this.cursor;
         const bufY = y + this.scrollOffset;
 
         if (!this.buffer[bufY]) return;
-        this.buffer[bufY] = this.buffer[bufY].slice(0, this.cursor.x);
+        this.buffer[bufY] = right
+            ? this.buffer[bufY].slice(0, this.cursor.x)
+            : this.buffer[bufY].slice(this.cursor.x)
 
-        this.addFormat(bufY, {
-            start: this.cursor.x,
-            length: this.dimension.w,
-            format: {}
-        })
+        this.addFormat(bufY, right
+            ? {
+                start: this.cursor.x,
+                length: this.dimension.w,
+                format: {}
+            }
+            : {
+                start: 0,
+                length: this.cursor.x,
+                format: {}
+            }
+        )
     }
 
-    clearScreenDown() {
+    clearScreen(down) {
         const {y} = this.cursor;
         const top = {};
         const formatTop = {};
         const keys = Object.keys(this.buffer);
         const highestIx = parseInt(keys[keys.length - 1])
-        for (let i = y + this.scrollOffset; i < highestIx; i++) {
+
+        const clearStart = down
+            ? y + this.scrollOffset
+            : 0
+        const clearEnd = down
+            ? highestIx
+            : y + this.scrollOffset
+
+        for (let i = clearStart; i < clearEnd; i++) {
             top[i] = this.buffer[i];
             formatTop[i] = this.formatBuffer[i];
         }
@@ -245,11 +276,12 @@ class SubTerminal {
     }
 
     checkScroll() {
-        if (this.cursor.y > this.size.rows - 1) {
-            const d = (this.cursor.y - (this.size.rows - 1))
+        const bottom = this.size.rows - 1
+        if (this.cursor.y > bottom) {
+            const d = (this.cursor.y - bottom)
 
             this.scrollOffset += d;
-            this.cursor.y = this.size.rows - 1;
+            this.cursor.y = bottom;
         }
     }
 
@@ -261,10 +293,10 @@ class SubTerminal {
         //
         // TODO:  do 7 and 8 need to be controlKeys?
         const patterns = [
-            /\u001b\[?=?()([0-9]*[0-9;]*)([ABCcDGgrsuPHfrMmtJKgnhl=])/,
-            /\u001b()()([78ABCDEFGHIJK])/,
-            /\u001b()([\(\)][AB012])/,
-            /\u001b\[\?()([0-9]*[lh])/,
+            /(\u001b\[?=?)([0-9]*[0-9;]*)([ABCcDGgrsuPHfrMmtJKgnhl=])/,
+            /(\u001b)()([78ABCDEFGHIJK])/,
+            /(\u001b[\(\)])([AB012])/,
+            /(\u001b\[\?)([0-9]*[lh])/,
             /()()([\r\n\b\t])/,
 
             // no idea what the below does
@@ -316,10 +348,12 @@ class SubTerminal {
                     : []
                 const count = params[0] || 1;
                 const controlKey = action.match[2];
+                const csi = action.match[0];
 
                 log.info({controlKey, whole_match: action.whole_match});
 
-                if (controlKey === 'H') {
+                if (controlKey === 'H' || controlKey === 'f') {
+                    log.info({action})
                     if (action.match[1]) {
                         this.setCursor(params[0] - 1, params[1] - 1);
                     } else {
@@ -343,35 +377,64 @@ class SubTerminal {
                 } else if (action.match[1] === '6' && controlKey === 'n') {
                     // what
                     this.setCursor(3, 3);
-                } else if (controlKey && controlKey.match(/[ABCD]/)) {
-                    if (count > 0) {
-                        switch (controlKey) {
-                            case 'A':
-                                this.moveCursor(-count, 0);
-                                break;
-                            case 'B':
-                                this.moveCursor(count, 0);
-                                break;
-                            case 'C':
-                                this.moveCursor(0, count);
-                                break;
-                            case 'D':
-                                this.moveCursor(0, -count);
-                                break;
-                        }
+                } else if (controlKey && controlKey.match(/[ABCDE]/)) {
+                    // VT52 doesn't move scroll window
+                    const capped = csi === "\u001b"
+                    if (count === 0) count = 1
+                    switch (controlKey) {
+                        case 'A':
+                            this.moveCursor(-count, 0, capped);
+                            break;
+                        case 'B':
+                            this.moveCursor(count, 0, capped);
+                            break;
+                        case 'C':
+                            this.moveCursor(0, count, capped);
+                            break;
+                        case 'D':
+                            this.moveCursor(0, -count, capped);
+                            break;
+                        case 'E':
+                            if (capped) {
+                                this.setCursor(this.cursor.y + 1, 0)
+                            }
+                            break;
                     }
                 } else if (controlKey === 'K') {
-                    this.clearLineRight();
+                    switch (parseInt(params[0])) {
+                        case 1:
+                            this.clearLine(false);
+                            break;
+                        case 2:
+                            this.clearEntireLine();
+                            break;
+                        case 0:
+                        default:
+                            this.clearLine(true);
+                            break;
+                    }
                 } else if (controlKey === 'P') {
-                    this.clearLineRight();
+                    this.clearLine(true);
                 } else if (controlKey === 'r') {
                     this.setScrollOffset((params[0] || 1) - 1);
                 } else if (controlKey === 'M') {
                     this.setScrollOffset(this.scrollOffset - 1);
-                } else if (controlKey === 'J' && params[0] == '0') {
-                    this.clearLineRight();
-                    // TODO: node appears to do this to its detriment
-                    this.clearScreenDown();
+                } else if (controlKey === 'J') {
+                    switch (parseInt(params[0])) {
+                        case 1:
+                            this.clearLine(false);
+                            this.clearScreen(false);
+                            break;
+                        case 2:
+                            this.clearBuffer();
+                            break;
+                        case 0:
+                        default:
+                            this.clearLine(true);
+                            // TODO: node appears to do this to its detriment
+                            this.clearScreen(true);
+                            break;
+                    }
                 } else if (controlKey === 'G') {
                     this.setCursor(this.cursor.y, params[0] - 1);
                 } else {
