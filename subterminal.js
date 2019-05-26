@@ -472,6 +472,7 @@ class SubTerminal {
                 formats = [{start: 0, length: this.size.cols, format: {bg: {color: 7}}}]
             }
 
+            // TODO: Pointless k => k ?
             line = this.applyFormats(line, formats.map(k => k))
 
             lines.push(line);
@@ -489,6 +490,8 @@ class SubTerminal {
 
         let first = formats.shift()
 
+        // TODO: (bug) why is first.format undefined?
+        // it's probably supposed to - it should mean "remove format"
         while (first) {
             result += str.slice(cursorIx, first.start)
             result += getFormatSeq(first.format)
@@ -556,6 +559,7 @@ class SubTerminal {
              this.buffer[bufY] = newLine;
 
              if (t.length > 0) {
+               // TODO indent...
                  this.addFormat(bufY, {
                      start: bufX,
                      length: t.length,
