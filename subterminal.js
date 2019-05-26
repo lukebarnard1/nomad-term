@@ -14,6 +14,10 @@ function createSubTerminal(renderCb) {
       cols: 80,
       rows: 30,
       cwd: process.env.HOME,
+      env: {
+          HOME: process.env['HOME'],
+          PS1: process.env['PS1']
+      }
     });
     const st = new SubTerminal(
         proc.write.bind(proc),
