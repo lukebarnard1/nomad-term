@@ -505,6 +505,10 @@ class SubTerminal {
             const startSeq = (...params) => "\u001b[" + params.join(';') + "m"
             let res = ""
 
+            if (!format) {
+              return startSeq(0);
+            }
+
             if (format.bg && format.bg.color) {
                 res += startSeq(48, 5, format.bg.color)
             }
