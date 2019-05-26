@@ -31,7 +31,7 @@ function createSubTerminal(renderCb) {
 //        - scrolling
 //        - clearing the screen
 //        - inserting formats
-// TODO: Make vim scrolling work
+// TODO: idea - store formatting with each line
 class SubTerminal {
     constructor(writeProcCb, resizeCb, renderCb) {
         this.id = uniqueId();
@@ -39,8 +39,6 @@ class SubTerminal {
         this.resizeCb = resizeCb
         this.renderCb = () => renderCb(this.id);
 
-        // The last width x height characters are the viewport
-        // 4 bytes text, 1 byte format
         const w = 10000;
         const h = 10000;
 
@@ -61,8 +59,6 @@ class SubTerminal {
             //   negative: false
             // }
         };
-
-        this.scrollOffset = 0;
 
         this.cursor = {
             x: 0,
@@ -92,29 +88,73 @@ class SubTerminal {
         this.size = { cols, rows };
         this.resizeCb(cols, rows);
 
-        const before = this.scrollOffset
-        this.setScrollOffset(Object.keys(this.buffer).length - 1 - rows)
-        const after = this.scrollOffset
-
-        this.setCursor(this.cursor.y + (before - after), this.cursor.x)
+        // After first resize, set default scroll margins
+        // TODO: set size during creation
+        if (!this._resized) {
+            this.setScrollMargins()
+            this._resized = true
+        }
     }
 
     setCursor(y, x) {
         this.cursor = { x, y }
 
         log.info({cursor: this.cursor})
-
-        this.checkScroll();
     }
 
-    setScrollOffset(s) {
-        log.info({scroll: s, set: true});
-        this.scrollOffset = s;
-        if (this.scrollOffset < 0) {
-            this.scrollOffset = 0;
+    // Set the scrolling margins of the screen. Rows outside of this
+    // region are not affected by scrolling.
+    setScrollMargins(t=1, b=this.size.rows) {
+        this.scrollMargins = { t: t - 1, b: b - 1 }
+    }
+
+    isWithinScrollMargins(i) {
+        return i >= this.scrollMargins.t && i <= this.scrollMargins.b
+    }
+
+    getDeltaOutOfScrollMargins(i) {
+        if (i > this.scrollMargins.b) {
+            return i - this.scrollMargins.b
+        } else if (i < this.scrollMargins.t) {
+            return i - this.scrollMargins.t
         }
+        return 0
     }
 
+    // Scroll lines in the scroll region by d
+    updateScrollRegion(d) {
+        let newBuffer = {}
+        let newFormatBuffer = {}
+        for (let ix = 0; ix < this.size.rows; ix++) {
+            if (this.isWithinScrollMargins(ix)) {
+                newBuffer[ix] = this.buffer[ix + d] || ''
+                newFormatBuffer[ix] = this.formatBuffer[ix + d] || []
+            } else {
+                newBuffer[ix] = this.buffer[ix] || ''
+                newFormatBuffer[ix] = this.formatBuffer[ix] || []
+            }
+        }
+
+        this.buffer = newBuffer
+        this.formatBuffer = newFormatBuffer
+    }
+
+    // Delete n lines from the buffer starting at cursor y
+    deleteLines(n) {
+        const save = this.scrollMargins.t
+        this.scrollMargins.t = this.cursor.y
+        this.updateScrollRegion(n)
+        this.scrollMargins.t = save
+    }
+
+    // Insert n lines above the cursor
+    // TODO: vim seems to set scroll region before
+    // this to somehow allow for scrolling the region
+    // down in order to insert blank lines. Might not
+    // be true for other programs using this.
+    insertLines(n) {
+        this.updateScrollRegion(-n)
+    }
 
     setFormat(params) {
         // Set the current parameters for the format of inserted text
@@ -196,18 +236,12 @@ class SubTerminal {
         this.format = {...newFormat, ...change}
     }
 
-    moveCursor(y, x, capped) {
-        log.info({moveCursor: {x,y,capped}})
-        if (!capped) {
-            this.cursor.x += x;
-            this.cursor.y += y;
-            this.checkScroll();
-        } else {
-            const cappedX = Math.max(Math.min(this.cursor.x + x, this.size.cols), 0);
-            const cappedY = Math.max(Math.min(this.cursor.y + y, this.size.rows), 0);
+    moveCursor(y, x) {
+        log.info({moveCursor: {x,y}})
+        const cappedX = Math.max(Math.min(this.cursor.x + x, this.size.cols), 0);
+        const cappedY = Math.max(Math.min(this.cursor.y + y, this.size.rows), 0);
 
-            this.cursor = {x: cappedX, y: cappedY};
-        }
+        this.cursor = {x: cappedX, y: cappedY};
     }
 
     clearBuffer() {
@@ -217,7 +251,7 @@ class SubTerminal {
 
     clearEntireLine() {
         const {x, y} = this.cursor;
-        const bufY = y + this.scrollOffset;
+        const bufY = y;
 
         this.buffer[bufY] = undefined
         this.formatBuffer[bufY] = undefined
@@ -225,7 +259,7 @@ class SubTerminal {
 
     clearLine(right) {
         const {x, y} = this.cursor;
-        const bufY = y + this.scrollOffset;
+        const bufY = y;
 
         if (!this.buffer[bufY]) return;
         this.buffer[bufY] = right
@@ -253,12 +287,8 @@ class SubTerminal {
         const keys = Object.keys(this.buffer);
         const highestIx = parseInt(keys[keys.length - 1])
 
-        const clearStart = down
-            ? y + this.scrollOffset
-            : 0
-        const clearEnd = down
-            ? highestIx
-            : y + this.scrollOffset
+        const clearStart = down ? y : 0
+        const clearEnd = down ? highestIx : y
 
         for (let i = clearStart; i < clearEnd; i++) {
             top[i] = this.buffer[i];
@@ -276,12 +306,10 @@ class SubTerminal {
     }
 
     checkScroll() {
-        const bottom = this.size.rows - 1
-        if (this.cursor.y > bottom) {
-            const d = (this.cursor.y - bottom)
-
-            this.scrollOffset += d;
-            this.cursor.y = bottom;
+        const d = this.getDeltaOutOfScrollMargins(this.cursor.y)
+        if (d !== 0) {
+            this.updateScrollRegion(d)
+            this.cursor.y = this.cursor.y - d;
         }
     }
 
@@ -293,11 +321,12 @@ class SubTerminal {
         //
         // TODO:  do 7 and 8 need to be controlKeys?
         const patterns = [
-            /(\u001b\[?=?)([0-9]*[0-9;]*)([ABCcDGgrsuPHfrMmtJKgnhl=])/,
+            /(\u001b\[?=?)([0-9]*[0-9;]*)([ABCcDGgrsuPHfrMmtJKgnhLl=])/,
             /(\u001b)()([78ABCDEFGHIJK])/,
             /(\u001b[\(\)])([AB012])/,
             /(\u001b\[\?)([0-9]*[lh])/,
             /()()([\r\n\b\t])/,
+            /(\u001b)(\>)/,
 
             // no idea what the below does
             /\u001b\[()()2\s*([0-9a-z])/,
@@ -377,28 +406,39 @@ class SubTerminal {
                 } else if (action.match[1] === '6' && controlKey === 'n') {
                     // what
                     this.setCursor(3, 3);
-                } else if (controlKey && controlKey.match(/[ABCDE]/)) {
+                } else if (controlKey && controlKey.match(/[ABCDEML]/)) {
                     // VT52 doesn't move scroll window
                     const capped = csi === "\u001b"
                     if (count === 0) count = 1
                     switch (controlKey) {
                         case 'A':
-                            this.moveCursor(-count, 0, capped);
+                            this.moveCursor(-count, 0);
                             break;
                         case 'B':
-                            this.moveCursor(count, 0, capped);
+                            this.moveCursor(count, 0);
                             break;
                         case 'C':
-                            this.moveCursor(0, count, capped);
+                            this.moveCursor(0, count);
                             break;
                         case 'D':
-                            this.moveCursor(0, -count, capped);
+                            this.moveCursor(0, -count);
                             break;
                         case 'E':
                             if (capped) {
                                 this.setCursor(this.cursor.y + 1, 0)
                             }
+                        case 'M':
+                            if (capped) {
+                                this.cursor = { x: this.cursor.x, y: this.cursor.y - 1 }
+                                this.checkScroll()
+                            } else {
+                                this.deleteLines(count)
+                            }
                             break;
+                        case 'L':
+                            if (!capped) {
+                                this.insertLines(count)
+                            }
                     }
                 } else if (controlKey === 'K') {
                     switch (parseInt(params[0])) {
@@ -416,9 +456,7 @@ class SubTerminal {
                 } else if (controlKey === 'P') {
                     this.clearLine(true);
                 } else if (controlKey === 'r') {
-                    this.setScrollOffset((params[0] || 1) - 1);
-                } else if (controlKey === 'M') {
-                    this.setScrollOffset(this.scrollOffset - 1);
+                    this.setScrollMargins(params[0], params[1]);
                 } else if (controlKey === 'J') {
                     switch (parseInt(params[0])) {
                         case 1:
@@ -449,13 +487,13 @@ class SubTerminal {
         }
     }
 
-    // TODO: Scroll to latest
     drawSubTerminal(w, h, {highlight, isFocussed}) {
         const lines = [];
 
         for (let i = 0; i < h; i++) {
             let line = Buffer.alloc(this.size.cols, ' ');
-            let bufY = this.scrollOffset + i;
+
+            let bufY = i;
 
             if (this.buffer[bufY]) {
                 line = this.buffer[bufY].toString('utf8').slice(0, this.size.cols)
@@ -537,7 +575,7 @@ class SubTerminal {
          }
 
          const bufX = this.cursor.x;
-         const bufY = this.cursor.y + this.scrollOffset;
+         const bufY = this.cursor.y;
          log.info({insertText: text, bufX, bufY});
 
          // text could include cariage returns
