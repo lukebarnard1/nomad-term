@@ -360,6 +360,7 @@ class SubTerminal {
         return match ? {
             action: {
                 type: 'CONTROL',
+                // TODO: These must be validated harshly
                 match: match.slice(1),
                 whole_match: match[0],
             },
