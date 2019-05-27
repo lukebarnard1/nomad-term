@@ -6,7 +6,8 @@ nomad-term is a terminal multiplexer that provides a similar interface to the ti
 
 The result is a grid-based terminal multiplexer with the same features provided by xmonad within the X windowing system but in the context of any ANSI-compliant terminal.
 
-![a GIF of nomad](https://lukebarnard.co.uk/img/nomad-term-2.gif)
+*A GIF of nomad*: 
+https://lukebarnard.co.uk/img/nomad-term-2.gif
 
 ## Installation
 
