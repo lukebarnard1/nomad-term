@@ -77,6 +77,15 @@ class SubTerminal {
         this.inputBufferIx = 0;
     }
 
+    getState() {
+        return {
+            buffer: this.buffer,
+            formatBuffer: this.formatBuffer,
+            cursor: this.cursor,
+            size: this.size
+        }
+    }
+
     writeToProc(data) {
         this.writeProcCb(data)
     }
@@ -838,4 +847,4 @@ function reduceFormats(formats=[], format) {
 
     return removeAdjacent(result.filter(f => f !== null))
 }
-module.exports = { createSubTerminal, reduceFormats }
+module.exports = { createSubTerminal, reduceFormats, SubTerminal }
