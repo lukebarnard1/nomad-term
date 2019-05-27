@@ -1,8 +1,10 @@
-function expect({description, actual, expected}) {
+function expect({description, actual, expected, KNOWN_BUG}) {
     actual = JSON.stringify(actual)
     expected = JSON.stringify(expected)
     const pass = actual === expected
-    const result = `${pass ? 'PASS' : 'FAIL'}`
+    const result = KNOWN_BUG
+      ? `${pass ? 'FIXD' : 'KNWN'}`
+      : `${pass ? 'PASS' : 'FAIL'}`
 
     console.info(`${result}: ${description}`)
 
@@ -10,7 +12,7 @@ function expect({description, actual, expected}) {
         console.info(' - ' + actual)
         console.info(' + ' + expected)
     }
-    return pass
+    return pass || KNOWN_BUG
 }
 
 function runTests(description, tests) {
