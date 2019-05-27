@@ -77,14 +77,8 @@ class SubTerminal {
         this.inputBufferIx = 0;
     }
 
-    getState() {
-        return {
-            buffer: this.buffer,
-            formatBuffer: this.formatBuffer,
-            cursor: this.cursor,
-            size: this.size
-        }
-    }
+    getLine(row) { return this.buffer[row] }
+    getCursorPosition() { return this.cursor }
 
     writeToProc(data) {
         this.writeProcCb(data)
