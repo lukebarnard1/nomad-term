@@ -381,7 +381,8 @@ class SubTerminal {
                     : []
                 const count = params[0] || 1;
                 const controlKey = action.match[2];
-                const csi = action.match[0];
+                const controlSeqInit = action.match[0];
+                const controlSeqInitIsESC = controlSeqInit === "\u001b"
 
                 log.info({controlKey, whole_match: action.whole_match});
 
@@ -412,7 +413,6 @@ class SubTerminal {
                     this.setCursor(3, 3);
                 } else if (controlKey && controlKey.match(/[ABCDEML]/)) {
                     // VT52 doesn't move scroll window
-                    const capped = csi === "\u001b"
                     if (count === 0) count = 1
                     switch (controlKey) {
                         case 'A':
@@ -428,11 +428,11 @@ class SubTerminal {
                             this.moveCursor(0, -count);
                             break;
                         case 'E':
-                            if (capped) {
+                            if (controlSeqInitIsESC) {
                                 this.setCursor(this.cursor.y + 1, 0)
                             }
                         case 'M':
-                            if (capped) {
+                            if (controlSeqInitIsESC) {
                                 this.cursor = { x: this.cursor.x, y: this.cursor.y - 1 }
                                 this.checkScroll()
                             } else {
@@ -440,7 +440,7 @@ class SubTerminal {
                             }
                             break;
                         case 'L':
-                            if (!capped) {
+                            if (!controlSeqInitIsESC) {
                                 this.insertLines(count)
                             }
                     }
