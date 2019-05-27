@@ -364,8 +364,6 @@ class SubTerminal {
             length: match[0].length
         } : {
             action: null,
-            not_matching: data.toString('utf8'),
-            offset: -1,
         }
     }
 
