@@ -744,6 +744,7 @@ function reduceFormats(formats=[], format) {
             || sB > sA && sB < fA
             || fA > sB && fA < fB
             || fB > sA && fB < fA
+            || sA === sB && fA === fB
     }
 
     if (formats.length === 0) return [format]
@@ -777,9 +778,19 @@ function reduceFormats(formats=[], format) {
         //
         // f3: |--------------|
         // r3: |----------|---------|
+        //
+        // f4:            |---------|
+        // r4:            |---------| (replaced with f)
 
         const startWithin = within(f.start)
         const endWithin = within(f.start + f.length)
+
+        const isSame = f.start === format.start && f.length === format.length
+
+        // f4
+        if (isSame) {
+          return [format]
+        }
 
         // f0
         if (startWithin && endWithin) return []

@@ -51,5 +51,10 @@ module.exports = () => runTests('reduceFormats ', [
         description: 'handles other more complex sub sequences',
         actual: reduceFormats([bgFormat(0, 5, 123), bgFormat(5, 5, 456), bgFormat(10, 4, 3)], bgFormat(5, 7, 9)),
         expected: [bgFormat(0, 5, 123), bgFormat(5, 7, 9), bgFormat(12, 2, 3)],
+    },
+    {
+        description: 'handles fully overlapping sequences',
+        actual: reduceFormats([bgFormat(0, 5, 123)], bgFormat(0, 5, 1)),
+        expected: [bgFormat(0, 5, 1)],
     }
 ])
