@@ -432,7 +432,9 @@ function onData(data) {
 
         switch (action.type) {
             case 'QUIT':
-                exit();
+                if (state && state.mode) {
+                  exit();
+                }
                 break;
             case 'RESTART':
                 log.info({unimplemented: 'RESTART'});
