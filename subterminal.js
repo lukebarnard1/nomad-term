@@ -248,6 +248,7 @@ class SubTerminal {
 
         // This is a new object everytime, so we can reuse this.format
         this.format = {...newFormat, ...change}
+        log.info({fmt: this.format})
     }
 
     moveCursor(y, x) {
@@ -563,11 +564,13 @@ class SubTerminal {
               return startSeq(0);
             }
 
+            const invert = format.negative
+
             if (format.bg && format.bg.color) {
-                res += startSeq(48, 5, format.bg.color)
+                res += startSeq(48, 5, (invert ? format.fg : format.bg).color)
             }
             if (format.fg && format.fg.color) {
-                res += startSeq(38, 5, format.fg.color)
+                res += startSeq(38, 5, (invert ? format.bg : format.fg).color)
             }
             return res
         }
