@@ -14,4 +14,4 @@ https://lukebarnard.co.uk/img/nomad-term-2.gif
 _Disclaimer_ - Please use at your own risk:
  - nomad-term is not yet officially released, this is a POC.
  - nomad-term has not been audited for security and may be vulnerable to malicious attacks via the output of a program running within it. 
- - The author will excercise best effort to make sure any security patches are communicated, including for that of dependencies.
+ - The author will exercise best effort to make sure any security patches are communicated, including for that of dependencies.
