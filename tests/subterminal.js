@@ -51,24 +51,20 @@ module.exports = () => runTests('SubTerminal handles ', [
         description: 'inserting lines after basic cursor movement',
         actual: getSubTerminalState('first\nsecond\u001b[4L').getLine(0).slice(0, 5),
         expected: 'first',
-
-        KNOWN_BUG: true
     },
     {
         description: 'basic scrolling sub region',
-        actual: getSubTerminalState('first\n\n\n\n\nsecond\u001b[1;5r\u001b[3L').getLine(3).slice(0, 5),
+        actual: getSubTerminalState('first\n\n\n\n\nsecond\u001b[1;5r\u001b[0;0H\u001b[3L').getLine(3).slice(0, 5),
         expected: 'first'
     },
     {
         description: 'basic scrolling sub region 2',
-        actual: getSubTerminalState('first\n\n\n\n\nsecond\u001b[1;5r\u001b[3L').getLine(5).slice(0, 6),
+        actual: getSubTerminalState('first\n\n\n\n\nsecond\u001b[1;5r\u001b[0;0H\u001b[3L').getLine(5).slice(0, 6),
         expected: 'second'
     },
     {
         description: 'basic scrolling sub region 3',
-        actual: getSubTerminalState('first\n\n\n\n\nsecond\u001b[1;5r\u001b[3L\u001b[1M').getLine(2).slice(0, 5),
+        actual: getSubTerminalState('first\n\n\n\n\nsecond\u001b[1;5r\u001b[0;0H\u001b[3L\u001b[1M').getLine(2).slice(0, 5),
         expected: 'first',
-
-        KNOWN_BUG: true
     },
 ])

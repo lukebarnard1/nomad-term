@@ -134,7 +134,11 @@ class SubTerminal {
         let newFormatBuffer = {}
         for (let ix = 0; ix < this.size.rows; ix++) {
             if (this.isWithinScrollMargins(ix)) {
-                newBuffer[ix] = this.buffer[ix + d] || ''
+                if (this.isWithinScrollMargins(ix + d)) {
+                  newBuffer[ix] = this.buffer[ix + d] || ''
+                } else {
+                  newBuffer[ix] = ''
+                }
                 newFormatBuffer[ix] = this.formatBuffer[ix + d] || []
             } else {
                 newBuffer[ix] = this.buffer[ix] || ''
@@ -160,7 +164,10 @@ class SubTerminal {
     // down in order to insert blank lines. Might not
     // be true for other programs using this.
     insertLines(n) {
+        const save = this.scrollMargins.t
+        this.scrollMargins.t = this.cursor.y
         this.updateScrollRegion(-n)
+        this.scrollMargins.t = save
     }
 
     setFormat(params) {
