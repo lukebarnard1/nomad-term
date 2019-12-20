@@ -487,7 +487,9 @@ function start() {
     });
 
     clearScreen();
-    // TODO: hide cursor ESC [ ? 25 l
+
+    // Hide cursor
+    stdout.write('\u001b[?25l')
 
     applyAction({
         type: 'LAUNCH_SHELL'
