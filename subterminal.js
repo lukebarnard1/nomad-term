@@ -172,7 +172,7 @@ class SubTerminal {
 
     setFormat(params) {
         // Set the current parameters for the format of inserted text
-        const newFormat = (params.length === 0) ? {} : this.format;
+        let newFormat = (params.length === 0) ? {} : this.format;
 
         let change = {
             4:  { underline: true },
@@ -204,6 +204,7 @@ class SubTerminal {
             fg = true
             bright = true
             start = 1
+            params.shift()
         }
         if (params[0] >= 30 && params[0] <= 39) {
             fg = true
@@ -244,6 +245,8 @@ class SubTerminal {
                     bg: { bright, color: colorIx }
                 }
             }
+        } else {
+          newFormat = {}
         }
 
         // This is a new object everytime, so we can reuse this.format
