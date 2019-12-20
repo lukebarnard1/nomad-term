@@ -184,6 +184,8 @@ function clearScreen() {
 
 function exit() {
     clearScreen();
+    // Show the cursor
+    stdout.write('\u001b[?25h')
     process.exit();
 }
 
