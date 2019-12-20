@@ -397,6 +397,9 @@ function render() {
     const startDivisions = startIndex + 1;
     const endDivisions = fw.shells.length - startDivisions;
 
+    // TODO: other layouts:
+    //   1. Columns(?)
+    //   2. Full screen
     let w = 0;
 
     if (endDivisions === 0) {
