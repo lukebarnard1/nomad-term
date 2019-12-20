@@ -524,7 +524,7 @@ class SubTerminal {
             let formats = this.formatBuffer[bufY] || []
 
             if (highlight) {
-                formats = [{start: 0, length: this.size.cols, format: {bg: {color: 7}}}]
+              formats = [{start: 0, length: this.size.cols, format: { bg: { color: 7 }, fg: { color: 8 } }}]
             }
 
             // TODO: Pointless k => k ?
