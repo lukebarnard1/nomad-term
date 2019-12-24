@@ -75,6 +75,10 @@ class SubTerminal {
 
         this.inputBuffer = Buffer.alloc(10000);
         this.inputBufferIx = 0;
+
+        this.modes = {
+          // 'MODE': false
+        }
     }
 
     getLine(row) { return this.buffer[row] }
@@ -337,6 +341,10 @@ class SubTerminal {
         }
     }
 
+    setMode(mode, v) {
+      this.modes[mode] = v
+    }
+
     getActionFor(data) {
         // TODO: Bit cumbersome to identify different
         // sequences as matches against different regexps.
@@ -500,6 +508,14 @@ class SubTerminal {
                     this.setCursor(this.cursor.y, params[0] - 1);
                 } else if (controlKey === 'm') {
                     this.setFormat(params)
+                } else if ((controlKey === 'h' || controlKey === 'l') && controlSeqInit === '\u001b[') {
+                    // Set Mode (SM), Reset Mode (RM)
+                    const shouldSet = controlKey === 'h'
+                    switch (parseInt(params[0])) {
+                        case 4:
+                            this.setMode('IRM', shouldSet)
+                            break;
+                    }
                 } else {
                     log.info({unsupported: { action, controlKey, params}})
                 }
@@ -597,9 +613,11 @@ class SubTerminal {
              return
          }
 
+         const shouldInsert = this.modes['IRM']
+
          const bufX = this.cursor.x;
          const bufY = this.cursor.y;
-         log.info({insertText: text, bufX, bufY});
+         log.info({insertText: text, bufX, bufY, shouldInsert});
 
          // text could include cariage returns
          //   \n moves down
@@ -615,7 +633,7 @@ class SubTerminal {
                  oldLine = oldLine + Buffer.alloc(bufX + t.length - oldLine.length, ' ').toString('utf8')
              }
 
-             const newLine = oldLine.slice(0, bufX) + t + oldLine.slice(bufX  + t.length)
+             const newLine = oldLine.slice(0, bufX) + t + oldLine.slice(bufX + (shouldInsert ? 0 : t.length))
 
              this.buffer[bufY] = newLine;
 
