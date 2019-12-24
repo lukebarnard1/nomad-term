@@ -158,6 +158,12 @@ class SubTerminal {
         this.scrollMargins.t = save
     }
 
+    deleteCharacter(n) {
+      const {x, y} = this.cursor
+      const oldLine = this.buffer[y]
+      this.buffer[y] = oldLine.slice(0, x) + oldLine.slice(x + n)
+    }
+
     // Insert n lines above the cursor
     // TODO: vim seems to set scroll region before
     // this to somehow allow for scrolling the region
@@ -471,7 +477,7 @@ class SubTerminal {
                             break;
                     }
                 } else if (controlKey === 'P') {
-                    this.clearLine(true);
+                  this.deleteCharacter(params[0])
                 } else if (controlKey === 'r') {
                     this.setScrollMargins(params[0], params[1]);
                 } else if (controlKey === 'J') {
