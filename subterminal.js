@@ -492,12 +492,10 @@ class SubTerminal {
                     }
                 } else if (controlKey === 'G') {
                     this.setCursor(this.cursor.y, params[0] - 1);
+                } else if (controlKey === 'm') {
+                    this.setFormat(params)
                 } else {
-                    if (controlKey === 'm') {
-                        this.setFormat(params)
-                    } else {
-                        log.info({unsupported: { action, controlKey, params}})
-                    }
+                    log.info({unsupported: { action, controlKey, params}})
                 }
 
                 break;
