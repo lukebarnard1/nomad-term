@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 
 const { stdin, stdout } = process;
 
