@@ -308,21 +308,24 @@ class SubTerminal {
         )
     }
 
-    clearScreen(down) {
+    clearScreen(below) {
         const {y} = this.cursor;
-        const top = {};
+        const kept = {};
         const formatTop = {};
         const keys = Object.keys(this.buffer);
         const highestIx = parseInt(keys[keys.length - 1])
 
-        const clearStart = down ? y : 0
-        const clearEnd = down ? highestIx : y
+        // Clearing
+        //  - below: keep the top (0 to y)
+        //  - above: keep the bottom (y to highest)
+        const keepStart = below ? 0 : (y + 1)
+        const keepEnd = below ? y : highestIx
 
-        for (let i = clearStart; i < clearEnd; i++) {
-            top[i] = this.buffer[i];
+        for (let i = keepStart; i < keepEnd; i++) {
+            kept[i] = this.buffer[i];
             formatTop[i] = this.formatBuffer[i];
         }
-        this.buffer = top;
+        this.buffer = kept;
         this.formatBuffer = formatTop;
     }
 
@@ -489,6 +492,11 @@ class SubTerminal {
                 } else if (controlKey === 'r') {
                     this.setScrollMargins(params[0], params[1]);
                 } else if (controlKey === 'J') {
+                    // CSI Ps J  Erase in Display (ED), VT100.
+                    //   Ps = 0  ⇒  Erase Below (default).
+                    //   Ps = 1  ⇒  Erase Above.
+                    //   Ps = 2  ⇒  Erase All.
+                    //   Ps = 3  ⇒  Erase Saved Lines, xterm.
                     switch (parseInt(params[0])) {
                         case 1:
                             this.clearLine(false);
@@ -499,8 +507,6 @@ class SubTerminal {
                             break;
                         case 0:
                         default:
-                            this.clearLine(true);
-                            // TODO: node appears to do this to its detriment
                             this.clearScreen(true);
                             break;
                     }
@@ -633,9 +639,15 @@ class SubTerminal {
                  oldLine = oldLine + Buffer.alloc(bufX + t.length - oldLine.length, ' ').toString('utf8')
              }
 
-             const newLine = oldLine.slice(0, bufX) + t + oldLine.slice(bufX + (shouldInsert ? 0 : t.length))
+             const newBufferLine = oldLine.slice(0, bufX) + t + oldLine.slice(bufX + (shouldInsert ? 0 : t.length))
 
-             this.buffer[bufY] = newLine;
+             this.buffer[bufY] = newBufferLine;
+
+             log.info({bufAfterInsert: [
+               this.buffer[bufY - 1],
+               this.buffer[bufY],
+               this.buffer[bufY + 1]
+             ]})
 
              if (t.length > 0) {
                // TODO indent...
