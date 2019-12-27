@@ -5,6 +5,8 @@ const { stdin, stdout } = process;
 const { createSubTerminal } = require('./subterminal')
 const log = require('./log')
 
+const { performance } = require('./perf')
+
 function initWorkspace(shells=[]) {
     return {
         focussed_shell: 0,
@@ -308,14 +310,13 @@ function drawBox(x, y, w, h, isTop) {
     drawEdgeH(viewX, viewY + viewH, viewW, false);
 }
 
+const prevLines = {}
+
 // TODO: User-controlled buffer scrolling
 function drawBuffer(shell_id) {
     if (!areas[shell_id]) return;
 
     const {x, y, w, h} = areas[shell_id];
-    let i = 0;
-    let prevI = 0;
-    let line = 1;
 
     const st = subTerminals[shell_id];
     const fw = state.workspaces[state.focussed_workspace];
@@ -323,20 +324,32 @@ function drawBuffer(shell_id) {
     const isFocussed = fw.shells && fw.shells.length && shell_id === fw.shells[fw.focussed_shell].id;
     const highlight = state.mode > 0 && isFocussed
 
+    performance.mark('mark1')
     const lines = st.drawSubTerminal(w - 2, h - 1, {isFocussed, highlight});
+    performance.mark('mark2')
+    performance.measure('DRAW_SUB_TERMINAL', 'mark1', 'mark2')
 
-    lines.forEach((l) => {
-        stdout.cursorTo(x, y + line);
-        stdout.write('\u001b[m');
-        stdout.write(Buffer.alloc(w - 2, ' '));
+    // Clear sub terminal
+    const blankLine = new Array(w - 2).fill(' ').join('')
+    const blank = lines.map(
+        (l, ix) => '\u001b[' + [y+2+ix, x+1].join(';') + 'H' + blankLine
+    ).join('')
 
-        stdout.cursorTo(x, y + line);
-        stdout.write(l);
+    prevLines[shell_id] = prevLines[shell_id] || []
 
-        line++;
-    });
+    const blob = lines.map(
+        (l, ix) =>
+            prevLines[shell_id][ix] === l
+                ? ''
+                : '\u001b[' + [y+2+ix, x+1].join(';') + 'H' + blankLine +
+                  '\u001b[' + [y+2+ix, x+1].join(';') + 'H' + l
+    ).join('')
+    stdout.write(blob)
 
-    stdout.write('\u001b[m');
+    prevLines[shell_id] = lines
+
+    performance.mark('mark3')
+    performance.measure('OUTPUT_LINES', 'mark2', 'mark3')
 }
 
 function drawBoxesH(x, w, h, shells) {
