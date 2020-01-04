@@ -53,7 +53,7 @@ async function record(userInput, subTerm) {
 }
 
 async function getSubTerm(id) {
-  const onProcData = data => log({procOutput: data, subTermId: subTerm.id})
+  const onProcData = data => log({procOutput: data, subTermId: id})
   let subTerm = createSubTerminal(() => {}, { id, onProcData })
   subTerm.resize(50, 50)
   await delay(2000)
@@ -107,6 +107,21 @@ runTests([
       record('vim example.' + Date.now() + '.js\nilet i = 1000;while(i-- >0)console.info(i);\u001bV:!node\n', subTerm)
         .then(() => record('VG:sort\n', subTerm))
         .then(() => record('100j5dd3p', subTerm))
+        .then(() => record(':q!\n', subTerm))
+  },
+  {
+    name: 'test_vim_help',
+    plan: (subTerm) =>
+      record('vim\n:help\n', subTerm)
+        .then(() => record('/CTRL\n', subTerm))
+        .then(() => record('5n', subTerm))
+        .then(() => record('n', subTerm))
+        .then(() => record('n', subTerm))
+        .then(() => record('n', subTerm))
+        .then(() => record('Vjjjy', subTerm))
+        .then(() => record(':q!\n', subTerm))
+        .then(() => record('5p', subTerm))
+        .then(() => record('VGJ', subTerm))
         .then(() => record(':q!\n', subTerm))
   },
 ])
