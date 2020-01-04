@@ -7,7 +7,8 @@ function uniqueId() {
     return Math.random().toString(36).slice(2);
 }
 
-function createSubTerminal(renderCb, {onProcData = null, id = null}) {
+function createSubTerminal(renderCb, opts) {
+    const {onProcData = null, id = null} = opts || {}
     const shell = os.platform() === 'win32' ? 'powershell.exe' : 'bash';
     const proc = pty.spawn(shell, [], {
       name: 'xterm-color',
