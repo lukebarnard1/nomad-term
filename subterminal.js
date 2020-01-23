@@ -102,17 +102,14 @@ class SubTerminal {
 
     // TODO: WRAPPING!
     resize(cols, rows) {
+        this.resizeCb(cols, rows);
         if (this.size.cols === cols && this.size.rows === rows) return;
 
         this.size = { cols, rows };
-        this.resizeCb(cols, rows);
 
         // After first resize, set default scroll margins
         // TODO: set size during creation
-        if (!this._resized) {
-            this.setScrollMargins()
-            this._resized = true
-        }
+        this.setScrollMargins()
     }
 
     setCursor(y, x) {
@@ -542,12 +539,13 @@ class SubTerminal {
         const lines = [];
 
         for (let i = 0; i < h; i++) {
-            let line = Buffer.alloc(this.size.cols, ' ');
+            let line = Buffer.alloc(w, ' ');
 
             let bufY = i;
 
             if (this.buffer[bufY]) {
-                line = this.buffer[bufY].toString('utf8').slice(0, this.size.cols)
+                line = this.buffer[bufY].toString('utf8').slice(0, w)
+                line = line + Buffer.alloc(w - line.length, ' ')
             }
 
             // TODO: allow programs to hide cursor
@@ -558,7 +556,7 @@ class SubTerminal {
             let formats = this.formatBuffer[bufY] || []
 
             if (highlight) {
-              formats = [{start: 0, length: this.size.cols, format: { bg: { color: 7 }, fg: { color: 8 } }}]
+              formats = [{start: 0, length: w, format: { bg: { color: 7 }, fg: { color: 8 } }}]
             }
 
             // TODO: Pointless k => k ?

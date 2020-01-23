@@ -180,9 +180,7 @@ function applyAction(action) {
 let subTerminals = {};
 
 function clearScreen() {
-    stdout.cursorTo(0,0);
-    stdout.clearScreenDown();
-    stdout.cursorTo(0,0);
+    stdout.write('\u001b[2J')
 }
 
 function exit() {
@@ -311,6 +309,15 @@ function drawBox(x, y, w, h, isTop) {
 }
 
 const prevLines = {}
+function lineHasChanged(y, x, l) {
+  if (!prevLines[y]) return true
+  if (!prevLines[y][x]) return true
+  return prevLines[y][x] !== l
+}
+
+function recordLines(y, lines) {
+  lines.forEach((l, ix) => prevLines[y + ix] = l)
+}
 
 // TODO: User-controlled buffer scrolling
 function drawBuffer(shell_id) {
@@ -335,18 +342,17 @@ function drawBuffer(shell_id) {
         (l, ix) => '\u001b[' + [y+2+ix, x+1].join(';') + 'H' + blankLine
     ).join('')
 
-    prevLines[shell_id] = prevLines[shell_id] || []
-
     const blob = lines.map(
         (l, ix) =>
-            prevLines[shell_id][ix] === l
-                ? ''
-                : '\u001b[' + [y+2+ix, x+1].join(';') + 'H' + blankLine +
-                  '\u001b[' + [y+2+ix, x+1].join(';') + 'H' + l
+          lineHasChanged(y, x, l)
+            ? '\u001b[' + [y+2+ix, x+1].join(';') + 'H' + blankLine +
+              '\u001b[' + [y+2+ix, x+1].join(';') + 'H' + l
+            : ''
     ).join('')
+
     stdout.write(blob)
 
-    prevLines[shell_id] = lines
+    recordLines(y, lines)
 
     performance.mark('mark3')
     performance.measure('OUTPUT_LINES', 'mark2', 'mark3')
@@ -396,6 +402,7 @@ function setBufferArea(x, y, w, h, id) {
 
     // This is a side-effect, TODO - move this somewhere else
     subTerminals[id].resize(w - 2, h - 1);
+    subTerminals[id].render()
 }
 
 function render() {
@@ -494,8 +501,13 @@ function start() {
     //
     stdin.setRawMode(true);
     stdin.on('data', onData);
+
+    let resizeTimeout;
     stdout.on('resize', () => {
-        render();
+        clearScreen();
+
+        if (resizeTimeout) clearTimeout(resizeTimeout)
+        resizeTimeout = setTimeout(() => render(), 500)
     });
 
     process.on('SIGINT', () => {
