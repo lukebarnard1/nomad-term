@@ -23,7 +23,10 @@ stream.on('readable', () => {
 })
 
 stream.on('end', () => {
-  const entries = data.split('\n').filter(l => l).map(l => JSON.parse(l))
+  const entries = data.split('\n').filter(l => l).map((l, ix) => {
+    console.info({lineNumber: ix + 1, parsing: l})
+    return JSON.parse(l)
+  })
   check(entries)
   stream.close()
 });
