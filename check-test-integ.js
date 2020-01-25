@@ -1,44 +1,43 @@
-const path = require('path');
-const fs = require('fs');
+const path = require('path')
+const fs = require('fs')
 
 const logDir = path.join(__dirname, 'logs')
-const logPath = path.join(logDir, 'test-integ.log');
+const logPath = path.join(logDir, 'test-integ.log')
 
 const { createSubTerminal } = require('./subterminal')
 
 try {
-    fs.accessSync(logDir, fs.constants.F_OK);
+  fs.accessSync(logDir, fs.constants.F_OK)
 } catch (err) {
-    fs.mkdirSync(logDir)
+  fs.mkdirSync(logDir)
 }
 
-const stream = fs.createReadStream(logPath);
+const stream = fs.createReadStream(logPath)
 
 let data = ''
 stream.on('readable', () => {
-  let chunk;
-  while (null !== (chunk = stream.read())) {
+  let chunk
+  while ((chunk = stream.read()) !== null) {
     data += chunk
   }
 })
 
 stream.on('end', () => {
   const entries = data.split('\n').filter(l => l).map((l, ix) => {
-    console.info({lineNumber: ix + 1, parsing: l})
+    console.info({ lineNumber: ix + 1, parsing: l })
     return JSON.parse(l)
   })
   check(entries)
   stream.close()
-});
+})
 
-function check(entries) {
-
-  function drawCallback() {
+function check (entries) {
+  function drawCallback () {
     // do nothing
   }
 
   // Receive data from process
-  function onProcData(data) {
+  function onProcData (data) {
     // do nothing
   }
 
@@ -49,18 +48,18 @@ function check(entries) {
 
   const subTerms = {}
   subTermIds.map(id => {
-    const subTerm = createSubTerminal(drawCallback, {id, onProcData})
+    const subTerm = createSubTerminal(drawCallback, { id, onProcData })
     subTerm.resize(50, 50)
     subTerms[id] = subTerm
   })
 
-  function identical(a,b) {
+  function identical (a, b) {
     return JSON.stringify(a) === JSON.stringify(b)
   }
 
   let errorCount = 0
 
-  function runEntry(e) {
+  function runEntry (e) {
     const { subTermId } = e
 
     const subTerm = subTerms[subTermId]
@@ -78,12 +77,12 @@ function check(entries) {
 
       const expected = e.subTerminal
       const actual = {
-          lines: subTerm.drawSubTerminal(50, 50, {
-            isFocussed: true,
-            highlight: false,
-          }),
-          size: subTerm.size,
-          cursor: subTerm.cursor,
+        lines: subTerm.drawSubTerminal(50, 50, {
+          isFocussed: true,
+          highlight: false
+        }),
+        size: subTerm.size,
+        cursor: subTerm.cursor
       }
 
       const props = ['size', 'cursor', 'lines']
@@ -106,7 +105,7 @@ function check(entries) {
 
   entries.map(runEntry)
 
-  console.info({processedEntries: entries.length, errorCount})
+  console.info({ processedEntries: entries.length, errorCount })
 
   process.exit(errorCount)
 }
