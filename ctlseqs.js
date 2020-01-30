@@ -1,4 +1,6 @@
 
+const log = require('./log')
+
 const ESC = '\u001b'
 
 // Control Characters
@@ -163,6 +165,7 @@ const keys = Object.keys(CTL_SEQS)
 const vals = Object.values(CTL_SEQS)
 const fns = vals.map((s, ix) => {
   const prms = s
+  // MUST remove CSI AND a space
     .replace(/^CSI /, '')
     .replace(/P./, 'Pm')
     .replace(/ ; P./g, '')
@@ -192,7 +195,7 @@ const fns = vals.map((s, ix) => {
       }
       if (p.length === 0) {
         return {
-          params,
+          params: params.map(Number),
           code: keys[ix]
         }
       }
@@ -223,33 +226,60 @@ const getCodes = (s) => {
   }).filter(Boolean)
 }
 
+const singleCharCtl = {
+  '\n': 'NL',
+  '\r': 'CR',
+  '\b': 'BS',
+  '\t': 'HTS',
+}
+
+const addText = (text) => {
+  log.info({addText: text})
+  const outs = []
+  let t = ''
+  text.split('').map(s => {
+    const scc = singleCharCtl[s]
+    if (scc) {
+      if (t.length > 0) {
+        log.info({t})
+        outs.push({ text: t })
+        t = ''
+      }
+      outs.push({ code: scc })
+    } else {
+      t = t + s
+      log.info({t})
+    }
+  })
+  outs.push({ text: t })
+  return outs
+}
+
 const getCtlSeqs = (str) => {
   let outs = []
 
-  // consume text up to first CSI, or the
-  // entire thing if its all text
 
   const ixCSI = str.indexOf(CTL.CSI.str)
 
-  if (ixCSI === -1) {
+  let rest = str
+
+  // consume text up to first CSI
+  if (ixCSI !== -1) {
+    const text = str.slice(0, ixCSI)
+
+    outs = outs.concat(addText(text))
+
+    // consume first CSI
+    rest = str.slice(ixCSI + CTL.CSI.str.length)
+  } else {
     return {
-      outs: { text: str }
+      outs: addText(str)
     }
-  }
-
-  const text = str.slice(0, ixCSI)
-
-  if (text.length > 0) {
-    outs.push({ text })
   }
 
   // consume as much if the rest as a control seq
 
-  let rest = str.slice(ixCSI)
-
-  // consume first CSI
   let test = ''
-  rest = rest.slice(CTL.CSI.str.length)
 
   // continue to ingest character by character until matching only one or none
 
