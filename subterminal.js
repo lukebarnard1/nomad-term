@@ -368,11 +368,6 @@ class SubTerminal {
     const params = seq.params || []
     const count = params[0] || 1
 
-    // TODO: fix?
-    // const controlSeqInit = action.match[0]
-    const controlSeqInitIsESC = false
-
-    const controlKey = null
     const action = { match: [] }
 
     // CUP HVP
@@ -390,50 +385,21 @@ class SubTerminal {
       const tabWidth = 8
       const x = tabWidth + this.cursor.x - (this.cursor.x % tabWidth)
       this.setCursor(this.cursor.y, x)
-
-
-      // TODO:
-      //  replace the following with their new API equivalents! :D
-    } else if (action.match[1] === '2' && controlKey === 'J') {
-      this.clearBuffer()
-      this.setCursor(0, 0)
-    } else if (action.match[1] === '6' && controlKey === 'n') {
-      // what
-      this.setCursor(3, 3)
-    } else if (controlKey && controlKey.match(/[ABCDEML]/)) {
-      // VT52 doesn't move scroll window
-      if (count === 0) count = 1
-      switch (controlKey) {
-        case 'A':
-          this.moveCursor(-count, 0)
-          break
-        case 'B':
-          this.moveCursor(count, 0)
-          break
-        case 'C':
-          this.moveCursor(0, count)
-          break
-        case 'D':
-          this.moveCursor(0, -count)
-          break
-        case 'E':
-          if (controlSeqInitIsESC) {
-            this.setCursor(this.cursor.y + 1, 0)
-          }
-        case 'M':
-          if (controlSeqInitIsESC) {
-            this.cursor = { x: this.cursor.x, y: this.cursor.y - 1 }
-            this.checkScroll()
-          } else {
-            this.deleteLines(count)
-          }
-          break
-        case 'L':
-          if (!controlSeqInitIsESC) {
-            this.insertLines(count)
-          }
-      }
-    } else if (controlKey === 'K') {
+    } else if (seq.code === 'CUU') {
+      this.moveCursor(-count, 0)
+    } else if (seq.code === 'CUD') {
+      this.moveCursor(count, 0)
+    } else if (seq.code === 'CUF') {
+      this.moveCursor(0, count)
+    } else if (seq.code === 'CUB') {
+      this.moveCursor(0, -count)
+    } else if (seq.code === 'CNL') {
+      this.setCursor(this.cursor.y + count, 0)
+    } else if (seq.code === 'DL') {
+      this.deleteLines(count)
+    } else if (seq.code === 'IL') {
+      this.insertLines(count)
+    } else if (seq.code === 'DECSEL') {
       switch (parseInt(params[0])) {
         case 1:
           this.clearLine(false)
@@ -446,11 +412,11 @@ class SubTerminal {
           this.clearLine(true)
           break
       }
-    } else if (controlKey === 'P') {
+    } else if (seq.code === 'DCH') {
       this.deleteCharacter(params[0])
-    } else if (controlKey === 'r') {
+    } else if (seq.code === 'DECSTBM') {
       this.setScrollMargins(params[0], params[1])
-    } else if (controlKey === 'J') {
+    } else if (seq.code === 'ED') {
       // CSI Ps J  Erase in Display (ED), VT100.
       //   Ps = 0  ⇒  Erase Below (default).
       //   Ps = 1  ⇒  Erase Above.
@@ -463,27 +429,28 @@ class SubTerminal {
           break
         case 2:
           this.clearBuffer()
+          // TODO - next line needed?
+          //this.setCursor(0, 0)
           break
         case 0:
         default:
           this.clearScreen(true)
           break
       }
-    } else if (controlKey === 'G') {
+    } else if (seq.code === 'CHA') {
       this.setCursor(this.cursor.y, params[0] - 1)
-    } else if (controlKey === 'm') {
+    } else if (seq.code === 'SGR') {
       this.setFormat(params)
-      //} else if ((controlKey === 'h' || controlKey === 'l') && controlSeqInit === '\u001b[') {
-    } else if (controlKey === 'h' || controlKey === 'l') {
+    } else if (seq.code === 'SM' || seq.code === 'RM') {
       // Set Mode (SM), Reset Mode (RM)
-      const shouldSet = controlKey === 'h'
-      switch (parseInt(params[0])) {
+      const shouldSet = seq.code === 'SM'
+      switch (params[0]) {
         case 4:
           this.setMode('IRM', shouldSet)
           break
       }
     } else {
-      log.info({ unsupported: { action, controlKey, params } })
+      log.info({ unsupported: { seq } })
     }
   }
 
@@ -629,6 +596,7 @@ class SubTerminal {
   }
 
   write (data) {
+    log.info({debugg : { data_written: data.toString('utf8') }})
     const {
       outs: seqs
     } = getCtlSeqs(data.toString('utf8'))
