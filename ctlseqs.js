@@ -167,9 +167,11 @@ const fns = vals.map((s, ix) => {
   const prms = s
   // MUST remove CSI AND a space
     .replace(/^CSI /, '')
-    .replace(/P./, 'Pm')
+    .replace(/P[a-z]/, 'Pm')
     .replace(/ ; P./g, '')
     .split(' ')
+
+  console.info({ s, prms})
 
   // Return true if p is a prefix of prms.
   const test = (p) => {
@@ -186,6 +188,11 @@ const fns = vals.map((s, ix) => {
           }
           params = match[0].split(';')
           p = p.slice(match[0].length)
+          break
+        }
+        case 'SP': {
+          if (p[0] !== ' ') return false
+          p = p.slice(1)
           break
         }
         default: {
@@ -217,7 +224,8 @@ const tests = [
   ESC + '[m',
   ESC + '[1;2;3;4;5;6;7;8;9;123;456m',
   ESC + '[1;2;3;4;5;m;7;8;9;123;456m',
-  'test' + ESC + '[myo and some more' + ESC + '[5;4"pother'
+  'test' + ESC + '[myo and some more' + ESC + '[5;4"pother',
+  ESC + '[2 q'
 ]
 
 const getCodes = (s) => {
@@ -231,33 +239,43 @@ const singleCharCtl = {
   '\r': 'CR',
   '\b': 'BS',
   '\t': 'HTS',
+  '\u0007': 'BL'
 }
 
 const addText = (text) => {
-  log.info({addText: text})
+  log.info({debugg : { add_text: text }})
+  if (text.includes('\u001b')) return []
+  if (text.length === 0) {
+    return []
+  }
   const outs = []
   let t = ''
   text.split('').map(s => {
     const scc = singleCharCtl[s]
     if (scc) {
       if (t.length > 0) {
-        log.info({t})
         outs.push({ text: t })
         t = ''
       }
       outs.push({ code: scc })
     } else {
       t = t + s
-      log.info({t})
     }
   })
   outs.push({ text: t })
+  log.info({debugg : { add_text_outs: outs }})
   return outs
 }
 
+// TODO: Make not stateful?
+let left = ''
 const getCtlSeqs = (str) => {
   let outs = []
 
+  if (left.length > 0) {
+    str = left + str
+    left = ''
+  }
 
   const ixCSI = str.indexOf(CTL.CSI.str)
 
@@ -272,6 +290,18 @@ const getCtlSeqs = (str) => {
     // consume first CSI
     rest = str.slice(ixCSI + CTL.CSI.str.length)
   } else {
+    // assume this is unfinished CSI to be consumed later
+    // TODO: could be unconsumed ESC sequence
+    const ixESC = str.indexOf(ESC)
+
+    if (ixESC !== -1) {
+      left = left + str.slice(ixESC)
+
+      return {
+        outs: addText(str.slice(0, ixESC))
+      }
+    }
+
     return {
       outs: addText(str)
     }
@@ -296,15 +326,57 @@ const getCtlSeqs = (str) => {
     if (matching.length === 1) {
       lastMatching = matching[0]
     }
-  } while (matching.length > 0 && i < rest.length)
+    log.info({debugg : matching.length})
+  } while (matching.length > 0 && i < rest.length - 1)
 
   if (lastMatching) {
     outs.push(lastMatching)
   }
 
   rest = rest.slice(i)
+  log.info({debugg: { rest_now: rest }})
 
-  if (rest.length > 0) {
+  // TODO have a long think about the different scenarios here
+  // because there aren't that many and mostly involve
+  // data being consumed without it's preceding data being
+  // present.
+  //
+  // So literally one option is to "wait" until data has been
+  // buffered in before consuming it.
+  //
+  // A program shouldn't expect to render correctly until it delivers
+  // all the data required, so it's fine to wait and also avoids pointless
+  // work to determine that, no this unfinished sequence doesn't
+  // match anything.
+
+  // After matching an entire sequence, there might just be
+  // only CSI left, so set left to that and return so that
+  // it can be consumed next time
+  if (rest === CTL.CSI.str) {
+    left = rest
+    return {
+      str,
+      outs
+    }
+  }
+
+  // The test had matches but not exactly one, and
+  // it was entirely consumed so consider it unfinished.
+  if (matching.length > 0) {
+  // if (i === rest.length && !lastMatching ) {
+    log.info({debugg : { maybe_add_to_left: test }})
+    left = CTL.CSI.str + test
+    return {
+      str,
+      outs
+    }
+  }
+
+  // After matching an entire sequence and finding exactly one
+  // match, there was some left over, so recurse to continue
+  // finding more sequences
+  if (rest.length >= 0) {
+    log.info({debugg : { rest_after_seq: rest }})
     outs = outs.concat(getCtlSeqs(rest).outs)
   }
 
