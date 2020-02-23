@@ -104,9 +104,10 @@ class SubTerminal {
 
   // TODO: WRAPPING!
   resize (cols, rows) {
+    log.info({resize: {cols, rows}})
+
     this.resizeCb(cols, rows)
     if (this.size.cols === cols && this.size.rows === rows) return
-
     this.size = { cols, rows }
 
     // After first resize, set default scroll margins
@@ -141,6 +142,7 @@ class SubTerminal {
 
   // Scroll lines in the scroll region by d
   updateScrollRegion (d) {
+    log.info({scrollingBy: d})
     const newBuffer = {}
     const newFormatBuffer = {}
     for (let ix = 0; ix < this.size.rows; ix++) {
@@ -150,6 +152,7 @@ class SubTerminal {
         } else {
           newBuffer[ix] = ''
         }
+        log.info({isWithin: ix, n: newBuffer[ix], o: this.buffer[ix]})
         newFormatBuffer[ix] = this.formatBuffer[ix + d] || []
       } else {
         newBuffer[ix] = this.buffer[ix] || ''
@@ -338,6 +341,7 @@ class SubTerminal {
 
   checkScroll () {
     const d = this.getDeltaOutOfScrollMargins(this.cursor.y)
+    log.info({outOfSM: d, cursor: this.cursor, sm: this.scrollMargins})
     if (d !== 0) {
       this.updateScrollRegion(d)
       this.cursor.y = this.cursor.y - d
