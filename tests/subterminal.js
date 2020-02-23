@@ -34,17 +34,17 @@ module.exports = () => runTests('SubTerminal handles ', [
   },
   {
     description: 'inserting text across multiple lines',
-    actual: getSubTerminalState('first\n\n\n\n\nsecond').getLine(5).slice(0, 6),
+    actual: getSubTerminalState('first\n\n\n\n\n\rsecond').getLine(5).slice(0, 6),
     expected: 'second'
   },
   {
     description: 'inserting text after basic cursor movement',
-    actual: getSubTerminalState('testing\n\n\n\n\ntesting\u001b[2A\rhello world').getLine(3).slice(0, 11),
+    actual: getSubTerminalState('testing\n\n\n\n\n\rtesting\u001b[2A\rhello world').getLine(3).slice(0, 11),
     expected: 'hello world'
   },
   {
     description: 'deleting lines after basic cursor movement',
-    actual: getSubTerminalState('first\n\n\n\n\nsecond\u001b[3A\u001b[3M').getLine(2).slice(0, 6),
+    actual: getSubTerminalState('first\n\n\n\n\n\rsecond\u001b[3A\u001b[3M').getLine(2).slice(0, 6),
     expected: 'second'
   },
   {
@@ -54,17 +54,17 @@ module.exports = () => runTests('SubTerminal handles ', [
   },
   {
     description: 'basic scrolling sub region',
-    actual: getSubTerminalState('first\n\n\n\n\nsecond\u001b[1;5r\u001b[0;0H\u001b[3L').getLine(3).slice(0, 5),
+    actual: getSubTerminalState('first\n\n\n\n\n\rsecond\u001b[1;5r\u001b[0;0H\u001b[3L').getLine(3).slice(0, 5),
     expected: 'first'
   },
   {
     description: 'basic scrolling sub region 2',
-    actual: getSubTerminalState('first\n\n\n\n\nsecond\u001b[1;5r\u001b[0;0H\u001b[3L').getLine(5).slice(0, 6),
+    actual: getSubTerminalState('first\n\n\n\n\n\rsecond\u001b[1;5r\u001b[0;0H\u001b[3L').getLine(5).slice(0, 6),
     expected: 'second'
   },
   {
     description: 'basic scrolling sub region 3',
-    actual: getSubTerminalState('first\n\n\n\n\nsecond\u001b[1;5r\u001b[0;0H\u001b[3L\u001b[1M').getLine(2).slice(0, 5),
+    actual: getSubTerminalState('first\n\n\n\n\n\rsecond\u001b[1;5r\u001b[0;0H\u001b[3L\u001b[1M').getLine(2).slice(0, 5),
     expected: 'first'
   }
 ])
