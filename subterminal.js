@@ -271,7 +271,6 @@ class SubTerminal {
 
     // This is a new object everytime, so we can reuse this.format
     this.format = { ...newFormat, ...change }
-    log.info({ fmt: this.format })
   }
 
   moveCursor (y, x) {
@@ -341,7 +340,6 @@ class SubTerminal {
 
   checkScroll () {
     const d = this.getDeltaOutOfScrollMargins(this.cursor.y)
-    log.info({outOfSM: d, cursor: this.cursor, sm: this.scrollMargins})
     if (d !== 0) {
       this.updateScrollRegion(d)
       this.cursor.y = this.cursor.y - d
@@ -353,7 +351,7 @@ class SubTerminal {
   }
 
   reduceTerminalAction (seq) {
-    log.info({seq})
+    log.info({ seq })
 
     if (seq.text) {
       this.insertText(seq.text)
@@ -552,7 +550,7 @@ class SubTerminal {
 
     const bufX = this.cursor.x
     const bufY = this.cursor.y
-    log.info({ insertText: text, bufX, bufY, shouldInsert })
+    log.info({ text, bufX, bufY })
 
     // text could include cariage returns
     //   \n moves down
@@ -571,14 +569,6 @@ class SubTerminal {
       const newBufferLine = oldLine.slice(0, bufX) + t + oldLine.slice(bufX + (shouldInsert ? 0 : t.length))
 
       this.buffer[bufY] = newBufferLine
-
-      log.info({
-        bufAfterInsert: [
-          this.buffer[bufY - 1],
-          this.buffer[bufY],
-          this.buffer[bufY + 1]
-        ]
-      })
 
       if (t.length > 0) {
         // TODO indent...
@@ -600,7 +590,7 @@ class SubTerminal {
   }
 
   write (data) {
-    log.info({debugg : { before: { restText: this.rest, data_written: data.toString('utf8') }}})
+    log.info({data: data.toString('utf8')})
 
     const currentRest = this.rest || ''
     this.rest = ''
@@ -612,7 +602,6 @@ class SubTerminal {
 
     if (rest) {
       this.rest = rest
-      //log.info({debugg: { setting_this_rest: rest}})
     }
 
     seqs.forEach(s => this.reduceTerminalAction(s))
