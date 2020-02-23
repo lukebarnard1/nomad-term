@@ -3,10 +3,6 @@ const pty = require('node-pty')
 const log = require('./log')
 const os = require('os')
 
-const { SubTerminal: OldSubTerminal } = require('./old-subterminal')
-
-const { getCtlSeqs } = require('./ctlseqs')
-
 function uniqueId () {
   return Math.random().toString(36).slice(2)
 }
@@ -31,29 +27,14 @@ function createSubTerminal (renderCb, opts) {
   )
 
   st.id = id || st.id
+
   proc.on('data', data => st.write(data))
-
-  const sts = [st]
-
-  if (opts.compareWithOld) {
-    const oldSt = new OldSubTerminal(
-      proc.write.bind(proc),
-      proc.resize.bind(proc),
-      renderCb
-    )
-    oldSt.resize(10, 10)
-    oldSt.id = 'old_' + (id || oldSt.id)
-
-    proc.on('data', data => oldSt.write(data))
-
-    sts.push(oldSt)
-  }
 
   if (onProcData) {
     proc.on('data', onProcData)
   }
 
-  return sts
+  return st
 }
 
 // TODO: Make SubTerminal much easier to test
@@ -121,10 +102,9 @@ class SubTerminal {
 
   // TODO: WRAPPING!
   resize (cols, rows) {
-    log.info({resize: {cols, rows}})
-
     this.resizeCb(cols, rows)
     if (this.size.cols === cols && this.size.rows === rows) return
+
     this.size = { cols, rows }
 
     // After first resize, set default scroll margins
@@ -135,7 +115,7 @@ class SubTerminal {
   setCursor (y, x) {
     this.cursor = { x, y }
 
-    log.info({ cursor: this.cursor })
+    log.info({ old: true, cursor: this.cursor })
   }
 
   // Set the scrolling margins of the screen. Rows outside of this
@@ -159,7 +139,6 @@ class SubTerminal {
 
   // Scroll lines in the scroll region by d
   updateScrollRegion (d) {
-    log.info({scrollingBy: d})
     const newBuffer = {}
     const newFormatBuffer = {}
     for (let ix = 0; ix < this.size.rows; ix++) {
@@ -169,7 +148,6 @@ class SubTerminal {
         } else {
           newBuffer[ix] = ''
         }
-        log.info({isWithin: ix, n: newBuffer[ix], o: this.buffer[ix]})
         newFormatBuffer[ix] = this.formatBuffer[ix + d] || []
       } else {
         newBuffer[ix] = this.buffer[ix] || ''
@@ -291,7 +269,6 @@ class SubTerminal {
   }
 
   moveCursor (y, x) {
-    log.info({ moveCursor: { x, y } })
     const cappedX = Math.max(Math.min(this.cursor.x + x, this.size.cols), 0)
     const cappedY = Math.max(Math.min(this.cursor.y + y, this.size.rows), 0)
 
@@ -355,6 +332,13 @@ class SubTerminal {
     this.formatBuffer = formatTop
   }
 
+  newLine () {
+    this.cursor.x = 0
+    this.cursor.y += 1
+
+    this.checkScroll()
+  }
+
   checkScroll () {
     const d = this.getDeltaOutOfScrollMargins(this.cursor.y)
     if (d !== 0) {
@@ -367,109 +351,182 @@ class SubTerminal {
     this.modes[mode] = v
   }
 
-  reduceTerminalAction (seq) {
-    log.info({ seq })
+  getActionFor (data) {
+    // TODO: Bit cumbersome to identify different
+    // sequences as matches against different regexps.
+    //
+    // Probably better to reduce to { function, params }
+    //
+    // TODO:  do 7 and 8 need to be controlKeys?
+    const patterns = [
+      /(\u001b\[?=?)([0-9]*[0-9;]*)([ABCcDGgrsuPHfrMmtJKgnhLl=])/,
+      /(\u001b)()([78ABCDEFGHIJK])/,
+      /(\u001b[\(\)])([AB012])/,
+      /(\u001b\[\?)([0-9]*[lh])/,
+      /()()([\r\n\b\t])/,
+      /(\u001b)(\>)/,
 
-    if (seq.text) {
-      this.insertText(seq.text)
-      return
+      // no idea what the below does
+      /\u001b\[()()2\s*([0-9a-z])/,
+
+      // BEL
+      /\u0007()()()/
+    ]
+
+    const matches = patterns.map(
+      p => data.toString('utf8').match(p)
+    ).filter(m => m).sort((a, b) => {
+      if (a.index === b.index) {
+        return a[0].length > b[0].length ? -1 : 1
+      }
+      if (a.index < b.index) {
+        return -1
+      } else {
+        return 1
+      }
+    })
+
+    const match = matches[0]
+
+    return match ? {
+      action: {
+        type: 'CONTROL',
+        // TODO: These must be validated harshly
+        match: match.slice(1),
+        whole_match: match[0]
+      },
+      start: match.index,
+      length: match[0].length
+    } : {
+      action: null
     }
+  }
 
-    if (!seq.code) return
+  reduceTerminalAction (action) {
+    switch (action.type) {
+      case 'TEXT':
+        this.insertText(action.text)
+        break
+      case 'CONTROL':
+        const paramString = action.match[1]
+        const params = paramString.length > 0
+          ? paramString.split(';').map((s) => parseInt(s))
+          : []
+        const count = params[0] || 1
+        const controlKey = action.match[2]
+        const controlSeqInit = action.match[0]
+        const controlSeqInitIsESC = controlSeqInit === '\u001b'
 
-    const params = seq.params || []
-    const count = params[0] || 1
-
-    const action = { match: [] }
-
-    // TODO: do TDD to check each of these affect the terminal as expected
-    // CUP HVP
-    if (seq.code === 'HVP' || seq.code === 'CUP') {
-      this.setCursor((params[0] || 1) - 1, (params[1] || 1) - 1)
-    } else if (action.whole_match === '\u0007') {
-      // bell
-    } else if (seq.code === 'CR') {
-      this.setCursor(this.cursor.y, 0)
-    } else if (seq.code === 'NL') {
-      this.cursor.y += 1
-
-      this.checkScroll()
-    } else if (seq.code === 'RI') {
-      this.cursor.y -= 1
-
-      this.checkScroll()
-    } else if (seq.code === 'BS') {
-      this.cursor.x -= 1
-    } else if (seq.code === 'HTS') {
-      const tabWidth = 8
-      const x = tabWidth + this.cursor.x - (this.cursor.x % tabWidth)
-      this.setCursor(this.cursor.y, x)
-    } else if (seq.code === 'CUU') {
-      this.moveCursor(-count, 0)
-    } else if (seq.code === 'CUD') {
-      this.moveCursor(count, 0)
-    } else if (seq.code === 'CUF') {
-      this.moveCursor(0, count)
-    } else if (seq.code === 'CUB') {
-      this.moveCursor(0, -count)
-    } else if (seq.code === 'CNL') {
-      this.setCursor(this.cursor.y + count, 0)
-    } else if (seq.code === 'DL') {
-      this.deleteLines(count)
-    } else if (seq.code === 'IL') {
-      this.insertLines(count)
-    } else if (seq.code === 'EL') {
-      switch (parseInt(params[0])) {
-        case 1:
-          this.clearLine(false)
-          break
-        case 2:
-          this.clearEntireLine()
-          break
-        case 0:
-        default:
-          this.clearLine(true)
-          break
-      }
-    } else if (seq.code === 'DCH') {
-      this.deleteCharacter(params[0])
-    } else if (seq.code === 'DECSTBM') {
-      this.setScrollMargins(params[0], params[1])
-    } else if (seq.code === 'ED') {
-      // CSI Ps J  Erase in Display (ED), VT100.
-      //   Ps = 0  ⇒  Erase Below (default).
-      //   Ps = 1  ⇒  Erase Above.
-      //   Ps = 2  ⇒  Erase All.
-      //   Ps = 3  ⇒  Erase Saved Lines, xterm.
-      switch (parseInt(params[0])) {
-        case 1:
-          this.clearLine(false)
-          this.clearScreen(false)
-          break
-        case 2:
+        if (controlKey === 'H' || controlKey === 'f') {
+          if (action.match[1]) {
+            this.setCursor(params[0] - 1, params[1] - 1)
+          } else {
+            this.setCursor(0, 0)
+          }
+        } else if (action.whole_match === '\u0007') {
+          // bell
+        } else if (controlKey === '\r') {
+          this.cursor.x = 0
+        } else if (controlKey === '\n') {
+          this.newLine()
+        } else if (controlKey === '\b') {
+          this.cursor.x -= 1
+        } else if (controlKey === '\t') {
+          const tabWidth = 8
+          const x = tabWidth + this.cursor.x - (this.cursor.x % tabWidth)
+          this.setCursor(this.cursor.y, x)
+        } else if (action.match[1] === '2' && controlKey === 'J') {
           this.clearBuffer()
-          // TODO - next line needed?
-          //this.setCursor(0, 0)
-          break
-        case 0:
-        default:
-          this.clearScreen(true)
-          break
-      }
-    } else if (seq.code === 'CHA') {
-      this.setCursor(this.cursor.y, params[0] - 1)
-    } else if (seq.code === 'SGR') {
-      this.setFormat(params)
-    } else if (seq.code === 'SM' || seq.code === 'RM') {
-      // Set Mode (SM), Reset Mode (RM)
-      const shouldSet = seq.code === 'SM'
-      switch (params[0]) {
-        case 4:
-          this.setMode('IRM', shouldSet)
-          break
-      }
-    } else {
-      log.info({ unsupported: { seq } })
+          this.setCursor(0, 0)
+        } else if (action.match[1] === '6' && controlKey === 'n') {
+          // what
+          this.setCursor(3, 3)
+        } else if (controlKey && controlKey.match(/[ABCDEML]/)) {
+          // VT52 doesn't move scroll window
+          if (count === 0) count = 1
+          switch (controlKey) {
+            case 'A':
+              this.moveCursor(-count, 0)
+              break
+            case 'B':
+              this.moveCursor(count, 0)
+              break
+            case 'C':
+              this.moveCursor(0, count)
+              break
+            case 'D':
+              this.moveCursor(0, -count)
+              break
+            case 'E':
+              if (controlSeqInitIsESC) {
+                this.setCursor(this.cursor.y + 1, 0)
+              }
+            case 'M':
+              if (controlSeqInitIsESC) {
+                this.cursor = { x: this.cursor.x, y: this.cursor.y - 1 }
+                this.checkScroll()
+              } else {
+                this.deleteLines(count)
+              }
+              break
+            case 'L':
+              if (!controlSeqInitIsESC) {
+                this.insertLines(count)
+              }
+          }
+        } else if (controlKey === 'K') {
+          switch (parseInt(params[0])) {
+            case 1:
+              this.clearLine(false)
+              break
+            case 2:
+              this.clearEntireLine()
+              break
+            case 0:
+            default:
+              this.clearLine(true)
+              break
+          }
+        } else if (controlKey === 'P') {
+          this.deleteCharacter(params[0])
+        } else if (controlKey === 'r') {
+          this.setScrollMargins(params[0], params[1])
+        } else if (controlKey === 'J') {
+          // CSI Ps J  Erase in Display (ED), VT100.
+          //   Ps = 0  ⇒  Erase Below (default).
+          //   Ps = 1  ⇒  Erase Above.
+          //   Ps = 2  ⇒  Erase All.
+          //   Ps = 3  ⇒  Erase Saved Lines, xterm.
+          switch (parseInt(params[0])) {
+            case 1:
+              this.clearLine(false)
+              this.clearScreen(false)
+              break
+            case 2:
+              this.clearBuffer()
+              break
+            case 0:
+            default:
+              this.clearScreen(true)
+              break
+          }
+        } else if (controlKey === 'G') {
+          this.setCursor(this.cursor.y, params[0] - 1)
+        } else if (controlKey === 'm') {
+          this.setFormat(params)
+        } else if ((controlKey === 'h' || controlKey === 'l') && controlSeqInit === '\u001b[') {
+          // Set Mode (SM), Reset Mode (RM)
+          const shouldSet = controlKey === 'h'
+          switch (parseInt(params[0])) {
+            case 4:
+              this.setMode('IRM', shouldSet)
+              break
+          }
+        } else {
+          log.info({ old: true, unsupported: { action, controlKey, params } })
+        }
+
+        break
     }
   }
 
@@ -567,7 +624,7 @@ class SubTerminal {
 
     const bufX = this.cursor.x
     const bufY = this.cursor.y
-    log.info({ text, bufX, bufY })
+    log.info({ old: true, text, bufX, bufY })
 
     // text could include cariage returns
     //   \n moves down
@@ -598,7 +655,7 @@ class SubTerminal {
 
       this.cursor.x += t.length
     } catch (e) {
-      log.info({ ERROR: { m: e.message, s: e.stack.split('\n') }, bufX, bufY })
+      log.info({ old:true, ERROR: { m: e.message, s: e.stack.split('\n') }, bufX, bufY })
     }
   }
 
@@ -607,21 +664,76 @@ class SubTerminal {
   }
 
   write (data) {
-    log.info({data: data.toString('utf8')})
+    log.info({ old: true, data: data.toString('utf8') })
+    let ix = this.inputBuffer.indexOf(0)
 
-    const currentRest = this.rest || ''
-    this.rest = ''
+    this.inputBuffer.write(data, ix)
 
-    const {
-      outs: seqs,
-      rest
-    } = getCtlSeqs(currentRest + data.toString('utf8'))
+    ix = this.inputBuffer.indexOf(0)
 
-    if (rest) {
-      this.rest = rest
+    // if data consumable, consume it
+    //
+    // data is consumable if
+    //    A there are no ESC
+    // or B there are ESCs and there are actions for it
+
+    let consume = false
+
+    const buffered = this.inputBuffer.slice(0, ix).toString()
+
+    if (!buffered.match(/\u001b/)) {
+      consume = true
+    } else {
+      // Make sure not to chop any unfinished control sequences
+      const escIx = this.inputBuffer.lastIndexOf('\u001b')
+      const result = this.getActionFor(this.inputBuffer.slice(escIx))
+      if (result.action) {
+        consume = true
+      }
     }
 
-    seqs.forEach(s => this.reduceTerminalAction(s))
+    if (consume) {
+      this.consume(this.inputBuffer.slice(0, ix))
+      this.inputBuffer = Buffer.alloc(this.dimension.w)
+    }
+  }
+
+  consume (data) {
+    let offset = 0
+    let action
+    const results = []
+    let lim = 1000
+
+    while (offset !== -1 && lim > 0) {
+      const result = this.getActionFor(data.toString('utf8').slice(offset))
+      if (!result.action) {
+        results.push({
+          type: 'TEXT',
+          NO_ACTION: true,
+          text: data.toString('utf8').slice(offset)
+        })
+        break
+      }
+
+      // Insert text
+      //  if match start is greater than zero, add the text between 0
+      //  and the start of the match
+      if (result.start > 0) {
+        results.push({
+          type: 'TEXT',
+          ACTION: true,
+          text: data.toString('utf8').slice(offset, offset + result.start)
+        })
+      }
+
+      // Control sequence
+      results.push(result.action)
+
+      offset += result.start + result.length
+      lim--
+    }
+
+    results.forEach(a => this.reduceTerminalAction(a))
 
     this.render()
   }
