@@ -62,7 +62,6 @@ function createSubTerminal (renderCb, opts) {
 //        - scrolling
 //        - clearing the screen
 //        - inserting formats
-// TODO: idea - store formatting with each line
 class SubTerminal {
   constructor (writeProcCb, resizeCb, renderCb) {
     this.id = uniqueId()
@@ -196,10 +195,6 @@ class SubTerminal {
   }
 
   // Insert n lines above the cursor
-  // TODO: vim seems to set scroll region before
-  // this to somehow allow for scrolling the region
-  // down in order to insert blank lines. Might not
-  // be true for other programs using this.
   insertLines (n) {
     const save = this.scrollMargins.t
     this.scrollMargins.t = this.cursor.y
@@ -448,8 +443,6 @@ class SubTerminal {
           break
         case 2:
           this.clearBuffer()
-          // TODO - next line needed?
-          //this.setCursor(0, 0)
           break
         case 0:
         default:
