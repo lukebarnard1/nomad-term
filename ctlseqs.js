@@ -84,7 +84,7 @@ function getSeqs (str) {
   return []
 }
 
-console.info('running')
+log.info('running')
 
 const CTL_SEQS = {
   ICH: 'CSI Ps @',
@@ -395,7 +395,7 @@ const getCtlSeqs = (str) => {
 
 const res = tests.map(getCtlSeqs)
 
-console.info(JSON.stringify(res,null,2))
+log.info(JSON.stringify(res, null, 2))
 
 module.exports = {
   getCtlSeqs
