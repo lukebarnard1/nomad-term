@@ -71,19 +71,6 @@ const CTL = {
   }
 }
 
-function createSeq (name) {
-  return {
-    name: 'SEQ'
-  }
-}
-
-/**
- * Decode a string of bytes into graphic characters and control sequences
-  */
-function getSeqs (str) {
-  return []
-}
-
 log.info('running')
 
 const CTL_SEQS = {
