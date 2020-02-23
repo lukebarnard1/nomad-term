@@ -551,7 +551,7 @@ class SubTerminal {
     // to the start of the buffer?
     //
 
-    if (text.match(/\u001b/)) {
+    if (text.includes('\u001b')) {
       log.error(new Error('insertText ESC ' + text))
       return
     }
