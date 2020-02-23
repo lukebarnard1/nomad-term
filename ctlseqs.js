@@ -244,9 +244,26 @@ fns.push({ test: (p) => {
 }})
 
 const getCodes = (s) => {
-  return fns.map(({ test, k }) => {
-    return test(s)
-  }).filter(Boolean)
+  if (s === ESC || s === CTL.CSI.str) {
+    return { some: true }
+  }
+
+  const matches = []
+
+  let i = 0
+  while (matches.length < 2 && i < fns.length) {
+    const res = fns[i].test(s)
+    if (res) {
+      matches.push(res)
+    }
+    i++
+  }
+
+  return {
+    some: matches.length > 0,
+    exact: matches.length === 1 && matches[0],
+    none: matches.length === 0
+  }
 }
 
 const singleCharCtl = {
@@ -331,23 +348,30 @@ const getCtlSeqs = (str) => {
 
   // continue to ingest character by character until matching only one or none
 
-  let matching = []
   let lastMatching
   let lastTest
   let i = -1
+  let none, many, exact, some
   do {
     i++
 
     // params
     test = test + rest[i]
-    matching = getCodes(test)
 
-    if (matching.length === 1) {
-      lastMatching = matching[0]
+    // we only need to know if there is 0, 1 or +
+    // and if there is 1, we need to know it
+    const codeResult = getCodes(test)
+    none = codeResult.none
+    some = codeResult.some
+    exact = codeResult.exact
+
+    log.info({test, none, many, exact})
+
+    if (exact) {
+      lastMatching = exact
       lastTest = test
     }
-    //log.info({debugg : matching.length})
-  } while (matching.length > 0 && i < rest.length - 1)
+  } while (some && i < rest.length - 1)
 
   if (lastMatching) {
     outs.push(lastMatching)
@@ -355,7 +379,7 @@ const getCtlSeqs = (str) => {
   } else {
   // Slice even if there was no match so that we don't get stuck
   // on unrecognised sequences
-    if (matching.length === 0) {
+    if (none) {
       rest = rest.slice(i + 1)
     }
   }
