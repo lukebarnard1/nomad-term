@@ -54,11 +54,13 @@ function limit (value, lower, upper) {
 }
 
 function newShell () {
-  const st = createSubTerminal(drawBuffer)
+  const sts = createSubTerminal(drawBuffer)
 
-  subTerminals[st.id] = st
+  sts.forEach(st => {
+    subTerminals[st.id] = st
+  })
 
-  return { id: st.id }
+  return sts.map(st => ({ id: st.id }))
 }
 
 function reduceCurrentWorkspace (state, action) {
@@ -87,7 +89,7 @@ function reduceCurrentWorkspace (state, action) {
       break
     case 'LAUNCH_SHELL':
       newState = {
-        shells: [...shells, newShell()],
+        shells: [...shells, ...newShell()],
         focussed_shell: shells.length
       }
       break
