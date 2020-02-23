@@ -336,13 +336,6 @@ class SubTerminal {
     this.formatBuffer = formatTop
   }
 
-  newLine () {
-    this.cursor.x = 0
-    this.cursor.y += 1
-
-    this.checkScroll()
-  }
-
   checkScroll () {
     const d = this.getDeltaOutOfScrollMargins(this.cursor.y)
     if (d !== 0) {
@@ -370,15 +363,22 @@ class SubTerminal {
 
     const action = { match: [] }
 
+    // TODO: do TDD to check each of these affect the terminal as expected
     // CUP HVP
     if (seq.code === 'HVP' || seq.code === 'CUP') {
       this.setCursor((params[0] || 1) - 1, (params[1] || 1) - 1)
     } else if (action.whole_match === '\u0007') {
       // bell
     } else if (seq.code === 'CR') {
-      this.cursor.x = 0
+      this.setCursor(this.cursor.y, 0)
     } else if (seq.code === 'NL') {
-      this.newLine()
+      this.cursor.y += 1
+
+      this.checkScroll()
+    } else if (seq.code === 'RI') {
+      this.cursor.y -= 1
+
+      this.checkScroll()
     } else if (seq.code === 'BS') {
       this.cursor.x -= 1
     } else if (seq.code === 'HTS') {
@@ -399,7 +399,7 @@ class SubTerminal {
       this.deleteLines(count)
     } else if (seq.code === 'IL') {
       this.insertLines(count)
-    } else if (seq.code === 'DECSEL') {
+    } else if (seq.code === 'EL') {
       switch (parseInt(params[0])) {
         case 1:
           this.clearLine(false)
@@ -596,10 +596,21 @@ class SubTerminal {
   }
 
   write (data) {
-    log.info({debugg : { data_written: data.toString('utf8') }})
+    log.info({debugg : { before: { restText: this.rest, data_written: data.toString('utf8') }}})
+
+    const currentRest = this.rest || ''
+    this.rest = ''
+
     const {
-      outs: seqs
-    } = getCtlSeqs(data.toString('utf8'))
+      outs: seqs,
+      rest
+    } = getCtlSeqs(currentRest + data.toString('utf8'))
+
+    if (rest) {
+      this.rest = rest
+      log.info({debugg: { setting_this_rest: rest}})
+      return
+    }
 
     seqs.forEach(s => this.reduceTerminalAction(s))
 

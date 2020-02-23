@@ -171,10 +171,14 @@ const fns = vals.map((s, ix) => {
     .replace(/ ; P./g, '')
     .split(' ')
 
-  console.info({ s, prms})
-
   // Return true if p is a prefix of prms.
   const test = (p) => {
+    if (p === '\u001b') return { code: keys[ix] }
+
+    if (p === '\u001b[') return { code: keys[ix] }
+    if (p[0] !== '\u001b' || p[1] !== '[') return false
+    p = p.slice(2)
+
     const rest = [...prms]
     let params = []
     while (rest.length > 0) {
@@ -225,8 +229,19 @@ const tests = [
   ESC + '[1;2;3;4;5;6;7;8;9;123;456m',
   ESC + '[1;2;3;4;5;m;7;8;9;123;456m',
   'test' + ESC + '[myo and some more' + ESC + '[5;4"pother',
-  ESC + '[2 q'
+  ESC + '[2 q',
+  `\u001b7\u001b[?47h\u001b[?1h\u001b=\u001b[H\u001b[2J\u001b[?2004h\u001b[?1004h\u001b[8;59;189t\u001b[r\u001b[1;1H\u001b[m\u001b[38;5;252m\u001b[48;5;237m                                                                                                                                                                                             \r\n                                                                                                                                                                                             \r\n                                                                                                                                                                                             \r\n                                                                                                                                                                                             \r\n                                                                                                                                                                                 `,
+  ESC + '[1;2;3;4mand' + ESC + '[1;2;3',
+  'just text yo' + ESC + '[mtext',
+
+  'abig' + ESC + '[M',
+  '\r\u001b[K\u001b[H\u001bM   if (text.includes',
 ]
+
+fns.push({ test: (p) => {
+  // TODO better support for non CSI seqs
+  if (p === '\u001bM') return { code: 'RI' }
+}})
 
 const getCodes = (s) => {
   return fns.map(({ test, k }) => {
@@ -243,7 +258,7 @@ const singleCharCtl = {
 }
 
 const addText = (text) => {
-  log.info({debugg : { add_text: text }})
+  //log.info({debugg : { add_text: text }})
   if (text.includes('\u001b')) return []
   if (text.length === 0) {
     return []
@@ -263,7 +278,7 @@ const addText = (text) => {
     }
   })
   outs.push({ text: t })
-  log.info({debugg : { add_text_outs: outs }})
+  //log.info({debugg : { add_text_outs: outs }})
   return outs
 }
 
@@ -273,11 +288,11 @@ const getCtlSeqs = (str) => {
   let outs = []
 
   if (left.length > 0) {
-    str = left + str
+    //str = left + str
     left = ''
   }
 
-  const ixCSI = str.indexOf(CTL.CSI.str)
+  const ixCSI = str.indexOf(ESC)
 
   let rest = str
 
@@ -287,20 +302,23 @@ const getCtlSeqs = (str) => {
 
     outs = outs.concat(addText(text))
 
-    // consume first CSI
-    rest = str.slice(ixCSI + CTL.CSI.str.length)
+    // consume up to first CSI
+    rest = str.slice(ixCSI)
   } else {
     // assume this is unfinished CSI to be consumed later
     // TODO: could be unconsumed ESC sequence
+    /*
     const ixESC = str.indexOf(ESC)
 
     if (ixESC !== -1) {
       left = left + str.slice(ixESC)
 
       return {
-        outs: addText(str.slice(0, ixESC))
+        outs: addText(str.slice(0, ixESC)),
+        rest: str.slice(ixESC)
       }
     }
+    */
 
     return {
       outs: addText(str)
@@ -315,6 +333,7 @@ const getCtlSeqs = (str) => {
 
   let matching = []
   let lastMatching
+  let lastTest
   let i = -1
   do {
     i++
@@ -325,16 +344,22 @@ const getCtlSeqs = (str) => {
 
     if (matching.length === 1) {
       lastMatching = matching[0]
+      lastTest = test
     }
-    log.info({debugg : matching.length})
+    //log.info({debugg : matching.length})
   } while (matching.length > 0 && i < rest.length - 1)
 
   if (lastMatching) {
     outs.push(lastMatching)
+    rest = rest.slice(lastTest.length)
+  } else {
+  // Slice even if there was no match so that we don't get stuck
+  // on unrecognised sequences
+    if (matching.length === 0) {
+      rest = rest.slice(i + 1)
+    }
   }
-
-  rest = rest.slice(i)
-  log.info({debugg: { rest_now: rest }})
+  //log.info({debugg: { rest_now: rest }})
 
   // TODO have a long think about the different scenarios here
   // because there aren't that many and mostly involve
@@ -352,11 +377,13 @@ const getCtlSeqs = (str) => {
   // After matching an entire sequence, there might just be
   // only CSI left, so set left to that and return so that
   // it can be consumed next time
+  /*
   if (rest === CTL.CSI.str) {
     left = rest
     return {
       str,
-      outs
+      outs,
+      rest
     }
   }
 
@@ -364,11 +391,12 @@ const getCtlSeqs = (str) => {
   // it was entirely consumed so consider it unfinished.
   if (matching.length > 0) {
   // if (i === rest.length && !lastMatching ) {
-    log.info({debugg : { maybe_add_to_left: test }})
+    //log.info({debugg : { maybe_add_to_left: test }})
     left = CTL.CSI.str + test
     return {
       str,
-      outs
+      outs,
+      rest//: CTL.CSI.str + test
     }
   }
 
@@ -376,13 +404,24 @@ const getCtlSeqs = (str) => {
   // match, there was some left over, so recurse to continue
   // finding more sequences
   if (rest.length >= 0) {
-    log.info({debugg : { rest_after_seq: rest }})
-    outs = outs.concat(getCtlSeqs(rest).outs)
+    //log.info({debugg : { rest_after_seq: rest }})
+    const next = getCtlSeqs(rest)
+    outs = outs.concat(next.outs)
+    rest = next.rest
+  }
+  */
+  //console.info({rest, str})
+  if (rest.length !== str.length) {
+    //log.info({debugg : { rest_after_seq: rest }})
+    const next = getCtlSeqs(rest)
+    outs = outs.concat(next.outs)
+    rest = next.rest
   }
 
   return {
     str,
-    outs
+    outs,
+    rest
   }
 }
 
