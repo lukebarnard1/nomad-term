@@ -275,7 +275,6 @@ const singleCharCtl = {
 }
 
 const addText = (text) => {
-  //log.info({debugg : { add_text: text }})
   if (text.includes('\u001b')) return []
   if (text.length === 0) {
     return []
@@ -295,7 +294,6 @@ const addText = (text) => {
     }
   })
   outs.push({ text: t })
-  //log.info({debugg : { add_text_outs: outs }})
   return outs
 }
 
@@ -365,8 +363,6 @@ const getCtlSeqs = (str) => {
     some = codeResult.some
     exact = codeResult.exact
 
-    log.info({test, none, many, exact})
-
     if (exact) {
       lastMatching = exact
       lastTest = test
@@ -383,60 +379,8 @@ const getCtlSeqs = (str) => {
       rest = rest.slice(i + 1)
     }
   }
-  //log.info({debugg: { rest_now: rest }})
 
-  // TODO have a long think about the different scenarios here
-  // because there aren't that many and mostly involve
-  // data being consumed without it's preceding data being
-  // present.
-  //
-  // So literally one option is to "wait" until data has been
-  // buffered in before consuming it.
-  //
-  // A program shouldn't expect to render correctly until it delivers
-  // all the data required, so it's fine to wait and also avoids pointless
-  // work to determine that, no this unfinished sequence doesn't
-  // match anything.
-
-  // After matching an entire sequence, there might just be
-  // only CSI left, so set left to that and return so that
-  // it can be consumed next time
-  /*
-  if (rest === CTL.CSI.str) {
-    left = rest
-    return {
-      str,
-      outs,
-      rest
-    }
-  }
-
-  // The test had matches but not exactly one, and
-  // it was entirely consumed so consider it unfinished.
-  if (matching.length > 0) {
-  // if (i === rest.length && !lastMatching ) {
-    //log.info({debugg : { maybe_add_to_left: test }})
-    left = CTL.CSI.str + test
-    return {
-      str,
-      outs,
-      rest//: CTL.CSI.str + test
-    }
-  }
-
-  // After matching an entire sequence and finding exactly one
-  // match, there was some left over, so recurse to continue
-  // finding more sequences
-  if (rest.length >= 0) {
-    //log.info({debugg : { rest_after_seq: rest }})
-    const next = getCtlSeqs(rest)
-    outs = outs.concat(next.outs)
-    rest = next.rest
-  }
-  */
-  //console.info({rest, str})
   if (rest.length !== str.length) {
-    //log.info({debugg : { rest_after_seq: rest }})
     const next = getCtlSeqs(rest)
     outs = outs.concat(next.outs)
     rest = next.rest
