@@ -297,67 +297,42 @@ const addText = (text) => {
   return outs
 }
 
-// TODO: Make not stateful?
-let left = ''
 const getCtlSeqs = (str) => {
+  // List of output sequences/text
   let outs = []
 
-  if (left.length > 0) {
-    //str = left + str
-    left = ''
-  }
+  const ixESC = str.indexOf(ESC)
 
-  const ixCSI = str.indexOf(ESC)
-
+  // The remaining data that has not been converted to
+  // control sequences or text
   let rest = str
 
-  // consume text up to first CSI
-  if (ixCSI !== -1) {
-    const text = str.slice(0, ixCSI)
+  // consume text up to first ESC
+  if (ixESC !== -1) {
+    const text = str.slice(0, ixESC)
 
     outs = outs.concat(addText(text))
 
-    // consume up to first CSI
-    rest = str.slice(ixCSI)
+    // The remainder to be processed is after the text
+    rest = str.slice(ixESC)
   } else {
-    // assume this is unfinished CSI to be consumed later
-    // TODO: could be unconsumed ESC sequence
-    /*
-    const ixESC = str.indexOf(ESC)
-
-    if (ixESC !== -1) {
-      left = left + str.slice(ixESC)
-
-      return {
-        outs: addText(str.slice(0, ixESC)),
-        rest: str.slice(ixESC)
-      }
-    }
-    */
-
+    // this is probably all text given lack of ESC
     return {
       outs: addText(str)
     }
   }
 
-  // consume as much if the rest as a control seq
-
+  // Test for sequences adding character by character
+  // to find the longest exact match
   let test = ''
-
-  // continue to ingest character by character until matching only one or none
-
   let lastMatching
   let lastTest
   let i = -1
-  let none, many, exact, some
+  let none, exact, some
   do {
     i++
-
-    // params
     test = test + rest[i]
 
-    // we only need to know if there is 0, 1 or +
-    // and if there is 1, we need to know it
     const codeResult = getCodes(test)
     none = codeResult.none
     some = codeResult.some
@@ -373,8 +348,8 @@ const getCtlSeqs = (str) => {
     outs.push(lastMatching)
     rest = rest.slice(lastTest.length)
   } else {
-  // Slice even if there was no match so that we don't get stuck
-  // on unrecognised sequences
+    // Slice even if there was no match so that we don't get stuck
+    // on unrecognised sequences
     if (none) {
       rest = rest.slice(i + 1)
     }
