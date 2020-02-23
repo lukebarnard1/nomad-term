@@ -612,8 +612,7 @@ class SubTerminal {
 
     if (rest) {
       this.rest = rest
-      log.info({debugg: { setting_this_rest: rest}})
-      return
+      //log.info({debugg: { setting_this_rest: rest}})
     }
 
     seqs.forEach(s => this.reduceTerminalAction(s))
