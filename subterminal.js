@@ -626,7 +626,6 @@ class SubTerminal {
 
 function removeAdjacent (fs) {
   const hashes = fs.map(f => JSON.stringify(f.format))
-  const before = fs.map(f => f)
 
   const stack = []
 

@@ -30,8 +30,6 @@ async function doUserInput (userInput, subTerm) {
   await delay(3000)
 }
 
-const { stdin, stdout } = process
-
 function recordSubTerm (subTerm) {
   const lines = subTerm.drawSubTerminal(50, 50, {
     isFocussed: true,

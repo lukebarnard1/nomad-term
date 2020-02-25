@@ -298,7 +298,6 @@ function viewTransform (c) {
 function drawBox (x, y, w, h, isTop) {
   const { x: viewX, y: viewY, w: viewW, h: viewH } = viewTransform({ x, y, w, h })
 
-  let c
   for (let i = 0; i < (viewH - 1); i++) {
     stdout.cursorTo(viewX, viewY + 1 + i)
     stdout.write(VIEW_FRAME.EDGE.V)
@@ -318,7 +317,9 @@ function lineHasChanged (y, x, l) {
 }
 
 function recordLines (y, lines) {
-  lines.forEach((l, ix) => prevLines[y + ix] = l)
+  lines.forEach((l, ix) => {
+    prevLines[y + ix] = l
+  })
 }
 
 // TODO: User-controlled buffer scrolling
@@ -340,9 +341,6 @@ function drawBuffer (shell_id) {
 
   // Clear sub terminal
   const blankLine = new Array(w - 2).fill(' ').join('')
-  const blank = lines.map(
-    (l, ix) => '\u001b[' + [y + 2 + ix, x + 1].join(';') + 'H' + blankLine
-  ).join('')
 
   const blob = lines.map(
     (l, ix) =>
@@ -373,7 +371,6 @@ function drawBoxesH (x, w, h, shells) {
   let viewY = 0
   for (let i = 0; i < divisions; i++) {
     const y = (i + 1) * divisionH
-    const h = divisionH
     const {
       x: viewX,
       y: newViewY,
@@ -448,8 +445,6 @@ function render () {
 }
 
 function onData (data) {
-  const fc = data[0]
-
   const action = mapKeyToAction(data)
   if (action) {
     // Stateful actions
