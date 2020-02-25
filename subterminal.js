@@ -99,6 +99,8 @@ class SubTerminal {
     this.dimension = { w, h }
     this.size = { cols: w, rows: h }
 
+    this.setScrollMargins()
+
     this.inputBuffer = Buffer.alloc(10000)
     this.inputBufferIx = 0
 
@@ -127,7 +129,6 @@ class SubTerminal {
     this.size = { cols, rows }
 
     // After first resize, set default scroll margins
-    // TODO: set size during creation
     this.setScrollMargins()
   }
 

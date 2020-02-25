@@ -97,7 +97,7 @@ function reduceCurrentWorkspace (state, action) {
       newState = {
         shells:
                   shells.length === 1
-                    ? [newShell()]
+                    ? [...newShell()]
                     : shells.filter((s, index) => index !== focussed_shell),
         focussed_shell: focussed_shell === 0 ? 0 : rotate(shells.length - 1, focussed_shell, -1)
       }
@@ -158,7 +158,7 @@ function reduceWorkspaces (state, action) {
 
   // Selecting an empty workspace populates it with a shell
   if (action.type === 'CURRENT_WORKSPACE_SELECT' && !newWorkspaces[action.destination]) {
-    newWorkspaces[action.destination] = initWorkspace([newShell()])
+    newWorkspaces[action.destination] = initWorkspace([...newShell()])
   }
 
   return newWorkspaces.map(
@@ -475,8 +475,9 @@ function onData (data) {
     // One mitigation would be to reduce the posibility of other state changing
     // when state.mode is enabled. This is currently done explicitly for each
     // part of reduced state
-    const shell_id = fw.shells[fw.focussed_shell].id
-    subTerminals[shell_id].writeToProc(data)
+    const focussedShell = fw.shells[fw.focussed_shell]
+    const focussedShellId = focussedShell && focussedShell.id
+    subTerminals[focussedShellId] && subTerminals[focussedShellId].writeToProc(data)
   }
 }
 
