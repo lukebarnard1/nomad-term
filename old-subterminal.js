@@ -782,11 +782,11 @@ function reduceFormats (formats = [], format) {
     const fA = a.start + a.length
     const fB = b.start + b.length
 
-    return sA > sB && sA < fB ||
-            sB > sA && sB < fA ||
-            fA > sB && fA < fB ||
-            fB > sA && fB < fA ||
-            sA === sB && fA === fB
+    return (sA > sB && sA < fB) ||
+           (sB > sA && sB < fA) ||
+           (fA > sB && fA < fB) ||
+           (fB > sA && fB < fA) ||
+           (sA === sB && fA === fB)
   }
 
   if (formats.length === 0) return [format]
