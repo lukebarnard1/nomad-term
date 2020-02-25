@@ -48,7 +48,7 @@ function check (entries) {
 
   const subTerms = {}
   subTermIds.map(id => {
-    const subTerm = createSubTerminal(drawCallback, { id, onProcData })
+    const [subTerm] = createSubTerminal(drawCallback, { id, onProcData })
     subTerm.resize(50, 50)
     subTerms[id] = subTerm
   })
