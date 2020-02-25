@@ -18,7 +18,7 @@ function expect ({ description, actual, expected, KNOWN_BUG }) {
 function runTests (description, tests) {
   return tests
     .map(t => expect({ ...t, description: description + t.description }))
-    .reduce((failures, pass) => failures += (pass ? 0 : 1), 0)
+    .reduce((failures, pass) => failures + (pass ? 0 : 1), 0)
 }
 
 module.exports = { runTests }
