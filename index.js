@@ -399,6 +399,7 @@ function setBufferArea (x, y, w, h, id) {
   areas[id] = { x, y, w, h }
   log.info({ areas })
 
+  if (!subTerminals[id]) return
   // This is a side-effect, TODO - move this somewhere else
   subTerminals[id].resize(w - 2, h - 1)
   subTerminals[id].render()
