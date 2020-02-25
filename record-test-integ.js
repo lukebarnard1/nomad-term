@@ -54,7 +54,7 @@ async function record (userInput, subTerm) {
 
 async function getSubTerm (id) {
   const onProcData = data => log({ procOutput: data, subTermId: id })
-  const subTerm = createSubTerminal(() => {}, { id, onProcData })
+  const [subTerm] = createSubTerminal(() => {}, { id, onProcData })
   subTerm.resize(50, 50)
   await delay(2000)
   return subTerm
