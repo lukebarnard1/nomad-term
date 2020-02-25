@@ -120,7 +120,7 @@ class SubTerminal {
 
   // TODO: WRAPPING!
   resize (cols, rows) {
-    log.info({resize: {cols, rows}})
+    log.info({ resize: { cols, rows } })
 
     this.resizeCb(cols, rows)
     if (this.size.cols === cols && this.size.rows === rows) return
@@ -158,7 +158,7 @@ class SubTerminal {
 
   // Scroll lines in the scroll region by d
   updateScrollRegion (d) {
-    log.info({scrollingBy: d})
+    log.info({ scrollingBy: d })
     const newBuffer = {}
     const newFormatBuffer = {}
     for (let ix = 0; ix < this.size.rows; ix++) {
@@ -168,7 +168,7 @@ class SubTerminal {
         } else {
           newBuffer[ix] = ''
         }
-        log.info({isWithin: ix, n: newBuffer[ix], o: this.buffer[ix]})
+        log.info({ isWithin: ix, n: newBuffer[ix], o: this.buffer[ix] })
         newFormatBuffer[ix] = this.formatBuffer[ix + d] || []
       } else {
         newBuffer[ix] = this.buffer[ix] || ''
@@ -600,7 +600,7 @@ class SubTerminal {
   }
 
   write (data) {
-    log.info({data: data.toString('utf8')})
+    log.info({ data: data.toString('utf8') })
 
     const currentRest = this.rest || ''
     this.rest = ''

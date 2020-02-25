@@ -655,7 +655,7 @@ class SubTerminal {
 
       this.cursor.x += t.length
     } catch (e) {
-      log.info({ old:true, ERROR: { m: e.message, s: e.stack.split('\n') }, bufX, bufY })
+      log.info({ old: true, ERROR: { m: e.message, s: e.stack.split('\n') }, bufX, bufY })
     }
   }
 

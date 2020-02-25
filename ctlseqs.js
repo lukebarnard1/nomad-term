@@ -217,18 +217,20 @@ const tests = [
   ESC + '[1;2;3;4;5;m;7;8;9;123;456m',
   'test' + ESC + '[myo and some more' + ESC + '[5;4"pother',
   ESC + '[2 q',
-  `\u001b7\u001b[?47h\u001b[?1h\u001b=\u001b[H\u001b[2J\u001b[?2004h\u001b[?1004h\u001b[8;59;189t\u001b[r\u001b[1;1H\u001b[m\u001b[38;5;252m\u001b[48;5;237m                                                                                                                                                                                             \r\n                                                                                                                                                                                             \r\n                                                                                                                                                                                             \r\n                                                                                                                                                                                             \r\n                                                                                                                                                                                 `,
+  '\u001b7\u001b[?47h\u001b[?1h\u001b=\u001b[H\u001b[2J\u001b[?2004h\u001b[?1004h\u001b[8;59;189t\u001b[r\u001b[1;1H\u001b[m\u001b[38;5;252m\u001b[48;5;237m                                                                                                                                                                                             \r\n                                                                                                                                                                                             \r\n                                                                                                                                                                                             \r\n                                                                                                                                                                                             \r\n                                                                                                                                                                                 ',
   ESC + '[1;2;3;4mand' + ESC + '[1;2;3',
   'just text yo' + ESC + '[mtext',
 
   'abig' + ESC + '[M',
-  '\r\u001b[K\u001b[H\u001bM   if (text.includes',
+  '\r\u001b[K\u001b[H\u001bM   if (text.includes'
 ]
 
-fns.push({ test: (p) => {
+fns.push({
+  test: (p) => {
   // TODO better support for non CSI seqs
-  if (p === '\u001bM') return { code: 'RI' }
-}})
+    if (p === '\u001bM') return { code: 'RI' }
+  }
+})
 
 const getCodes = (s) => {
   if (s === ESC || s === CTL.CSI.str) {
