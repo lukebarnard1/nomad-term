@@ -12,7 +12,7 @@ function uniqueId () {
 }
 
 function createSubTerminal (renderCb, opts) {
-  const { onProcData = null, id = null } = opts || {}
+  const { onProcData = null, id = null, compareWithOld = false } = opts || {}
   const shell = os.platform() === 'win32' ? 'powershell.exe' : 'bash'
   const proc = pty.spawn(shell, [], {
     name: 'xterm-color',
@@ -35,7 +35,7 @@ function createSubTerminal (renderCb, opts) {
 
   const sts = [st]
 
-  if (opts.compareWithOld) {
+  if (compareWithOld) {
     const oldSt = new OldSubTerminal(
       proc.write.bind(proc),
       proc.resize.bind(proc),
