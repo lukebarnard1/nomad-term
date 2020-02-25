@@ -533,10 +533,10 @@ class SubTerminal {
       const invert = format.negative
 
       if (format.bg && format.bg.color) {
-        res += startSeq(48, 5, (invert ? format.fg : format.bg).color)
+        res += startSeq(48, 5, ((invert && format.fg) ? format.fg : format.bg).color)
       }
       if (format.fg && format.fg.color) {
-        res += startSeq(38, 5, (invert ? format.bg : format.fg).color)
+        res += startSeq(38, 5, ((invert && format.bg) ? format.bg : format.fg).color)
       }
       return res
     }
