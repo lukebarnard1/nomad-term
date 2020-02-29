@@ -35,10 +35,15 @@ $ nomad
 When in _terminal manipulation mode_:
 | key combination | action |
 |-----------------|-----------------------|
+| shift-tab | toggle between _terminal input mode_ and _terminal manipulation mode_ |
 | backspace   | create a new terminal |
 | shift-c | close selected terminal |
 | j | select next terminal |
 | k | select previous terminal |
+| h | decrease main terminal size |
+| l | increase main terminal size |
+| , | increase number of primary terminals |
+| . | decrease number of secondary terminals |
 | shift-j | swap current terminal with next terminal |
 | shift-k | swap current terminal with previous terminal |
 | [0-9] | select workspace _n_ |
