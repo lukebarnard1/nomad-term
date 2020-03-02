@@ -20,13 +20,22 @@ function initWorkspace (shells = []) {
 
 const reduce = (state = {
   mode: true,
+  show_help: false,
   workspaces: [initWorkspace()],
   focussed_workspace: 0
 }, action) => {
   return {
     mode: reduceMode(state, action),
     workspaces: state.mode ? reduceWorkspaces(state, action) : state.workspaces,
-    focussed_workspace: state.mode ? reduceFocussedWorkspace(state, action) : state.focussed_workspace
+    focussed_workspace: state.mode ? reduceFocussedWorkspace(state, action) : state.focussed_workspace,
+    show_help:
+      state.mode
+        ? (
+          action.type === 'HELP_TOGGLE'
+            ? !state.show_help
+            : state.show_help
+        )
+        : state.show_help
   }
 }
 
@@ -175,8 +184,6 @@ function applyAction (action) {
 
   // Render borders, set sub terminal areas
   render()
-  // Render all sub terminals
-  Object.keys(subTerminals).forEach(drawBuffer)
 }
 
 const subTerminals = {}
@@ -204,6 +211,8 @@ function mapKeyToAction (key) {
 
     // shift-tab : ^[[Z
     '\u001b\u005bZ': { type: 'MODE_TOGGLE' },
+
+    'H': { type: 'HELP_TOGGLE' },
 
     C: { type: 'CLOSE_FOCUSSED_SHELL' },
 
@@ -298,15 +307,66 @@ function viewTransform (c) {
 function drawBox (x, y, w, h, isTop) {
   const { x: viewX, y: viewY, w: viewW, h: viewH } = viewTransform({ x, y, w, h })
 
-  for (let i = 0; i < (viewH - 1); i++) {
-    stdout.cursorTo(viewX, viewY + 1 + i)
+  drawBoxView(viewX, viewY, viewW, viewH, {isTop})
+}
+
+function wrapLine (s, w) {
+  if (s.length < w) return [s]
+  if (w <= 0) return [s]
+
+  const res = []
+  let rest = s
+
+  while (rest.length > w) {
+    let wrapPoint = rest.slice(0, w).lastIndexOf(' ') + 1
+    if (wrapPoint <= 0) {
+      wrapPoint = rest.length
+    }
+    const l = rest.slice(0, wrapPoint)
+    rest = rest.slice(wrapPoint)
+    res.push(l)
+  }
+  res.push(rest)
+  return res
+}
+
+function drawBoxView (viewX, viewY, viewW, viewH, {isTop, lines, shouldWrap=true}) {
+  const [x, y, w, h] = [viewX, viewY, viewW, viewH].map(Math.round)
+  for (let i = 0; i < (h - 1); i++) {
+    stdout.cursorTo(x, y + 1 + i)
     stdout.write(VIEW_FRAME.EDGE.V)
-    stdout.cursorTo(viewX + viewW - 1, viewY + 1 + i)
+    stdout.cursorTo(x + w - 1, y + 1 + i)
     stdout.write(VIEW_FRAME.EDGE.V)
   }
 
-  drawEdgeH(viewX, viewY, viewW, true, !isTop)
-  drawEdgeH(viewX, viewY + viewH, viewW, false)
+  drawEdgeH(x, y, w, true, !isTop)
+  drawEdgeH(x, y + h, w, false)
+
+  if (lines) {
+    const blankLine = Array(w - 2).fill(' ').join('')
+
+    let wrappedLines = shouldWrap
+      ? lines
+        .map(l => wrapLine(l, w - 6))
+        .reduce((ls, acc) => ls.concat(acc), [])
+      : lines
+
+    if (wrappedLines.length > h - 1) {
+      wrappedLines[h - 2] = '...'
+    }
+
+    if (wrappedLines.length < h - 1) {
+      wrappedLines = wrappedLines.concat(Array((h - 1) - wrappedLines.length).fill(''))
+    }
+
+    const blob = wrappedLines.slice(0, h - 1).map(
+      (l, ix) =>
+        '\u001b[' + [y + 2 + ix, x + 2].join(';') + 'H' + blankLine +
+        '\u001b[' + [y + 2 + ix, x + 4].join(';') + 'H' + l
+    ).join('')
+
+    stdout.write(blob)
+  }
 }
 
 const prevLines = {}
@@ -322,6 +382,38 @@ function recordLines (y, lines) {
   })
 }
 
+const help = [
+  '',
+  'welcome to nomad :)',
+  '',
+  'nomad-term is a terminal multiplexer that provides a similar interface to the tiling window manager, xmonad. It uses node-pty to fork each child process within a virtual pseudoterminal, maintaining an in-memory visual representation of program output.',
+  '',
+  '',
+  'controls',
+  '----',
+  '',
+  'shift-tab      toggle between input/movement',
+  'backspace      create a new terminal',
+  'Q              quit nomad',
+  'H              toggle help',
+  '',
+  '',
+  'movement',
+  '',
+  '----',
+  'j              select next terminal',
+  'k              select previous terminal',
+  'shift-j        swap current terminal with next terminal',
+  'shift-k        swap current terminal with previous terminal',
+  'shift-c        close selected terminal',
+  'h              decrease main terminal size',
+  'l              increase main terminal size',
+  ',              increase number of primary terminals',
+  '.              decrease number of secondary terminals',
+  '[0-9]          select workspace 0 - 9',
+  'shift-[0-9]    move selected terminal to workspace 0 - 9'
+]
+
 // TODO: User-controlled buffer scrolling
 function drawBuffer (shell_id) {
   if (!areas[shell_id]) return
@@ -332,10 +424,10 @@ function drawBuffer (shell_id) {
   const fw = state.workspaces[state.focussed_workspace]
 
   const isFocussed = fw.shells && fw.shells.length && shell_id === fw.shells[fw.focussed_shell].id
-  const highlight = state.mode > 0 && isFocussed
+  const showGuide = state.mode > 0 && isFocussed
 
   performance.mark('mark1')
-  const lines = st.drawSubTerminal(w - 2, h - 1, { isFocussed, highlight })
+  const lines = st.drawSubTerminal(w - 2, h - 1, { isFocussed, highlight: false })
   performance.mark('mark2')
   performance.measure('DRAW_SUB_TERMINAL', 'mark1', 'mark2')
 
@@ -354,8 +446,55 @@ function drawBuffer (shell_id) {
 
   recordLines(y, lines)
 
+  if (showGuide) {
+    drawGuide(x, y, w, h)
+  }
+
   performance.mark('mark3')
   performance.measure('OUTPUT_LINES', 'mark2', 'mark3')
+}
+
+function drawGuide (x, y, w, h) {
+  if (state.show_help) {
+    const hbY = Math.round(y + h * 0.05)
+    const hbW = Math.max(Math.round(2 * w / 3), 64)
+    const hbX = Math.round(x + w / 2 - hbW / 2)
+    const hbH = Math.min(Math.round(h - h * 0.1), 45)
+    const helpBoxRect = [hbX, hbY, hbW, hbH]
+
+    drawBoxView(...helpBoxRect, { isTop: true, lines: help })
+
+    stdout.cursorTo(hbX + 2, hbY)
+    stdout.write('nomad help')
+
+    stdout.cursorTo(hbX + hbW - 21, hbY)
+    stdout.write('(press H to toggle)')
+  } else {
+    const hbW = Math.min(Math.max(Math.round(w * 0.6), w - 5), 40)
+    const hbH = h < 10 ? 5 : 7
+
+    const hbX = Math.round(x + w * 0.5 - hbW / 2)
+    const hbY = Math.round(y + h * 0.5 - hbH / 2)
+
+    const lines = hbH === 7 ? [
+      '',
+      'help    H   select  jk (^ to move)',
+      'quit    Q   new     backspace',
+      'close   C   toggle  ^-tab',
+      'resize  hl  layout  .,'
+    ] : [
+      '',
+      'help   H, quit  Q, select [^]jk',
+      'close  C, new  <-, toggle  ^-tab'
+    ]
+
+    const helpBoxRect = [hbX, hbY, hbW, hbH]
+
+    drawBoxView(...helpBoxRect, { isTop: true, lines, shouldWrap: false })
+
+    stdout.cursorTo(hbX + 2, hbY)
+    stdout.write(' nomad // workspace ' + (state.focussed_workspace + 1) + ' ')
+  }
 }
 
 function drawBoxesH (x, w, h, shells) {
@@ -443,6 +582,9 @@ function render () {
   if (w !== 100) {
     drawBoxesH(w, 100 - w, h, fw.shells.slice(startDivisions))
   }
+
+  // Render all sub terminals
+  Object.keys(subTerminals).forEach(drawBuffer)
 }
 
 function onData (data) {
@@ -505,7 +647,7 @@ function start () {
     clearScreen()
 
     if (resizeTimeout) clearTimeout(resizeTimeout)
-    resizeTimeout = setTimeout(() => render(), 500)
+    resizeTimeout = setTimeout(() => render(), 200)
   })
 
   process.on('SIGINT', () => {
