@@ -4,8 +4,7 @@ A terminal multiplexer based on [xmonad](https://xmonad.org)
 
 nomad-term is a terminal multiplexer that provides a similar interface to the tiling window manager, [xmonad](https://xmonad.org). It uses [node-pty](https://github.com/Microsoft/node-pty) to fork each child process within a virtual pseudoterminal, maintaining an in-memory visual representation of program output. These "sub-terminals" are arranged as a grid and can be controlled with keyboard controls, with a very similar UX to xmonad.
 
-*A GIF of nomad*:
-https://lukebarnard.co.uk/img/nomad-term-2.gif
+![](https://pbs.twimg.com/media/ESI4XXRXsAIpOWy?format=jpg&name=4096x4096)
 
 ## Installation
 
