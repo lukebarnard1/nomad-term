@@ -13,11 +13,13 @@ _Disclaimer_ - Please use at your own risk:
  - nomad-term has not been audited for security and may be vulnerable to malicious attacks via the output of a program running within it.
  - The author will exercise best effort to make sure any security patches are communicated, including for that of dependencies.
 
+Clone git repo into nomad-term directory
 ```
-  # Clone git repo into nomad-term directory
 $ git clone git@github.com:lukebarnard1/nomad-term.git
+```
 
-  # Install into /usr/local/bin/
+Install into /usr/local/bin/
+```
 $ ln -s $(pwd)/nomad-term/index.js /usr/local/bin/nomad
 ```
 
@@ -29,12 +31,19 @@ $ nomad
 
 ### Keyboard controls
 
-**shift-tab**: toggle between _terminal input mode_ and _terminal manipulation mode_
+| shift-tab | toggle between input/movement |
+|-----------------|-----------------------|
 
-When in _terminal manipulation mode_:
+#### Modes
+_input_: send all key strokes to the selected terminal
+
+_move_: use key strokes to control nomad
+
+### Movement controls
+
 | key combination | action |
 |-----------------|-----------------------|
-| shift-tab | toggle between _terminal input mode_ and _terminal manipulation mode_ |
+| shift-tab | toggle between _input_ and _movement_ modes |
 | backspace   | create a new terminal |
 | shift-c | close selected terminal |
 | j | select next terminal |
