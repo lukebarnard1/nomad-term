@@ -4,8 +4,7 @@ A terminal multiplexer based on [xmonad](https://xmonad.org)
 
 nomad-term is a terminal multiplexer that provides a similar interface to the tiling window manager, [xmonad](https://xmonad.org). It uses [node-pty](https://github.com/Microsoft/node-pty) to fork each child process within a virtual pseudoterminal, maintaining an in-memory visual representation of program output. These "sub-terminals" are arranged as a grid and can be controlled with keyboard controls, with a very similar UX to xmonad.
 
-*A GIF of nomad*:
-https://lukebarnard.co.uk/img/nomad-term-2.gif
+![](https://pbs.twimg.com/media/ESI4XXRXsAIpOWy?format=jpg&name=4096x4096)
 
 ## Installation
 
@@ -14,11 +13,13 @@ _Disclaimer_ - Please use at your own risk:
  - nomad-term has not been audited for security and may be vulnerable to malicious attacks via the output of a program running within it.
  - The author will exercise best effort to make sure any security patches are communicated, including for that of dependencies.
 
+Clone git repo into nomad-term directory
 ```
-  # Clone git repo into nomad-term directory
 $ git clone git@github.com:lukebarnard1/nomad-term.git
+```
 
-  # Install into /usr/local/bin/
+Install into /usr/local/bin/
+```
 $ ln -s $(pwd)/nomad-term/index.js /usr/local/bin/nomad
 ```
 
@@ -30,12 +31,19 @@ $ nomad
 
 ### Keyboard controls
 
-**shift-tab**: toggle between _terminal input mode_ and _terminal manipulation mode_
+| shift-tab | toggle between input/movement |
+|-----------------|-----------------------|
 
-When in _terminal manipulation mode_:
+#### Modes
+_input_: send all key strokes to the selected terminal
+
+_move_: use key strokes to control nomad
+
+### Movement controls
+
 | key combination | action |
 |-----------------|-----------------------|
-| shift-tab | toggle between _terminal input mode_ and _terminal manipulation mode_ |
+| shift-tab | toggle between _input_ and _movement_ modes |
 | backspace   | create a new terminal |
 | shift-c | close selected terminal |
 | j | select next terminal |
