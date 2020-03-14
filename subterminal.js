@@ -205,14 +205,60 @@ class SubTerminal {
 
   setFormat (params) {
     // Set the current parameters for the format of inserted text
-    let newFormat = (params.length === 0) ? {} : this.format
+    const newFormat = {
+      ...this.format,
+      ...this.getFormatChange(params, true)
+      }
+    this.format = newFormat
+  }
 
-    let change = {
+  getFormatChange (params, initial=false) {
+    const reset = {
+      bright: false,
+      faint: false,
+      italics: false,
+      underline: false,
+      dbl_underline: false,
+      blink: false,
+      negative: false,
+      invisible: false,
+      strikeout: false,
+      fg: {},
+      bg: {}
+    }
+    if (params.length === 0) {
+      return initial ? reset : {}
+    }
+
+    const first = params.shift()
+
+    let bright
+    const flagChange = {
+      0: reset,
+      1: { bright: true },
+      2: { faint: true },
+      22: { bright: false, faint: false },
+      3: { italics: true },
+      23: { italics: false },
       4: { underline: true },
-      24: { underline: false },
+      21: { dbl_underline: true },
+      24: { underline: false, dbl_underline: false },
+      5: { blink: true },
+      25: { blink: false },
       7: { negative: true },
-      27: { negative: false }
-    }[params[0]]
+      27: { negative: false },
+      8: { invisible: true },
+      28: { invisible: false },
+      9: { strikeout: true },
+      29: { strikeout: false }
+    }[first]
+
+    if (flagChange) {
+      return {
+        ...flagChange,
+        ...this.getFormatChange(params)
+      }
+    }
 
     const colors = [
       'black',
@@ -232,58 +278,67 @@ class SubTerminal {
     // 90 - 97 foreground bold
     // 40 - 49 background non-bold
     // 100 - 107 background bold
-    let fg, bright, start
-    if (params[0] === 1) {
-      fg = true
-      bright = true
-      start = 1
-      params.shift()
-    }
-    if (params[0] >= 30 && params[0] <= 39) {
+    let fg
+    let start = 0
+    if (first >= 30 && first <= 39) {
       fg = true
       bright = false
       start = 30
     } else
-    if (params[0] >= 90 && params[0] <= 97) {
+    if (first >= 90 && first <= 97) {
       fg = true
       bright = true
       start = 90
     } else
-    if (params[0] >= 40 && params[0] <= 49) {
+    if (first >= 40 && first <= 49) {
       fg = false
       bright = false
       start = 40
     } else
-    if (params[0] >= 100 && params[0] <= 107) {
-      fg = true
+    if (first >= 100 && first <= 107) {
+      fg = false
       bright = true
       start = 100
     }
 
+    let colorChange = {}
+
     if (start) {
-      const colorIx = params[0] - start
+      const colorIx = first - start
       const color = colors[colorIx]
 
       if (color === 'default') {
-        change = fg ? { fg: {} } : { bg: {} }
-      } else
-      if (color === 'extended') {
-        // assumes 256 colors
-        const color = params[2]
-        change = fg ? { fg: { color } } : { bg: { color } }
+        colorChange = fg ? { fg: {} } : { bg: {} }
+      } else if (color === 'extended') { // first = 38 or 48
+        const second = params.shift()
+        if (second === 5) {
+          // extended indexed
+          const color = params.shift()
+          colorChange = fg ? { fg: { color } } : { bg: { color } }
+        } else if (second === 2) {
+          // extended RBG
+          //  ignore first param "Pi"
+          //  next 3 are R, G, B
+          params.shift()
+          const color = params.splice(0, 3)
+          colorChange = fg ? { fg: { color_rgb: color } } : { bg: { color_rgb: color } }
+        } else {
+          params.unshift(second)
+        }
       } else {
-        change = fg ? {
-          fg: { bright, color: colorIx }
+        colorChange = fg ? {
+          fg: { bright, color_ix: colorIx }
         } : {
-          bg: { bright, color: colorIx }
+          bg: { bright, color_ix: colorIx }
         }
       }
-    } else {
-      newFormat = {}
     }
 
     // This is a new object everytime, so we can reuse this.format
-    this.format = { ...newFormat, ...change }
+    return {
+      ...colorChange,
+      ...this.getFormatChange(params)
+    }
   }
 
   moveCursor (y, x) {
@@ -524,22 +579,66 @@ class SubTerminal {
     result += str.slice(cursorIx)
 
     function getFormatSeq (format) {
+      // TODO make sure parameters are numbers
       const startSeq = (...params) => '\u001b[' + params.join(';') + 'm'
-      let res = ''
+      let res = []
 
       if (!format) {
         return startSeq(0)
       }
 
       const invert = format.negative
+      const { fg, bg } = invert
+        ? { ...format, bg: format.fg, fg: format.bg }
+        : format
 
-      if (format.bg && format.bg.color) {
-        res += startSeq(48, 5, ((invert && format.fg) ? format.fg : format.bg).color)
+      if (format.bright) {
+        res.push(1)
       }
-      if (format.fg && format.fg.color) {
-        res += startSeq(38, 5, ((invert && format.bg) ? format.bg : format.fg).color)
+      if (format.faint) {
+        res.push(2) // not = 22
       }
-      return res
+
+      if (format.italics) {
+        res.push(3) // not = 23
+      }
+
+      if (format.underline) {
+        res.push(4)
+      }
+
+      if (format.dbl_underline) {
+        res.push(21) // not = 24
+      }
+
+      if (format.blink) {
+        res.push(5) // not = 25
+      }
+
+      if (format.invisible) {
+        res.push(8) // not = 28
+      }
+
+      if (bg) {
+        if (bg.color) {
+          res = [...res, 48, 5, bg.color]
+        } else if (typeof bg.color_rgb === 'object' && bg.color_rgb.length === 3) {
+          res = [...res, 48, 5, bg.color_rgb[0], bg.color_rgb[1], bg.color_rgb[2]]
+        } else if (typeof bg.color_ix === 'number') {
+          res = [...res, (bg.bright ? 100 : 40) + bg.color_ix]
+        }
+      }
+      if (fg) {
+        if (fg.color) {
+          res = [...res, 38, 5, fg.color]
+        } else if (typeof fg.color_rgb === 'object' && fg.color_rgb.length === 3) {
+          res = [...res, 38, 5, fg.color_rgb[0], fg.color_rgb[1], fg.color_rgb[2]]
+        } else if (typeof fg.color_ix === 'number') {
+          res = [...res, (fg.bright ? 90 : 30) + fg.color_ix]
+        }
+      }
+
+      return startSeq(...res)
     }
 
     return result
