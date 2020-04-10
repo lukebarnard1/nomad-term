@@ -13,9 +13,16 @@ _Disclaimer_ - Please use at your own risk:
  - nomad-term has not been audited for security and may be vulnerable to malicious attacks via the output of a program running within it.
  - The author will exercise best effort to make sure any security patches are communicated, including for that of dependencies.
 
+Make sure Node.js is installed, e.g. via [nvm](https://github.com/nvm-sh/nvm).
+
 Clone git repo into nomad-term directory
 ```
 $ git clone git@github.com:lukebarnard1/nomad-term.git
+```
+
+Install dependencies
+```
+$ npm install
 ```
 
 Install into /usr/local/bin/
@@ -52,6 +59,7 @@ _move_: use key strokes to control nomad
 | l | increase main terminal size |
 | , | increase number of primary terminals |
 | . | decrease number of secondary terminals |
+| ␣ (space) | select next layout: normal / full |
 | shift-j | swap current terminal with next terminal |
 | shift-k | swap current terminal with previous terminal |
 | [0-9] | select workspace _n_ |
