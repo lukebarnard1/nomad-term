@@ -11,6 +11,21 @@ function uniqueId () {
   return Math.random().toString(36).slice(2)
 }
 
+function filterParentEnv ({
+  SSH_AUTH_SOCK,
+  HOME
+}) {
+  return {
+    // Set name of the terminal to nomad!
+    TERM_PROGRAM: 'nomad_term',
+    // Proxy ssh-agent socket location as a convenience. This allows interaction
+    // with the same ssh-agent that was in use by the parent shell.
+    SSH_AUTH_SOCK,
+    // Proxy HOME directory variable
+    HOME
+  }
+}
+
 function createSubTerminal (renderCb, opts) {
   const { onProcData = null, id = null, compareWithOld = false } = opts || {}
   const shell = os.platform() === 'win32' ? 'powershell.exe' : 'bash'
@@ -19,10 +34,7 @@ function createSubTerminal (renderCb, opts) {
     cols: 80,
     rows: 30,
     cwd: process.env.HOME,
-    env: {
-      HOME: process.env.HOME,
-      PS1: process.env.PS1
-    }
+    env: filterParentEnv(process.env)
   })
   const st = new SubTerminal(
     proc.write.bind(proc),
