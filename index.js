@@ -123,7 +123,7 @@ function reduceCurrentWorkspace (state, action) {
       break
     case 'LAYOUT_ROTATE':
       newState = {
-        layout: rotate(3, state.layout, 1)
+        layout: rotate(2, state.layout, 1)
       }
       break
   }
@@ -399,8 +399,8 @@ const help = [
   '',
   '',
   'movement',
-  '',
   '----',
+  '',
   'j              select next terminal',
   'k              select previous terminal',
   'shift-j        swap current terminal with next terminal',
@@ -410,6 +410,7 @@ const help = [
   'l              increase main terminal size',
   ',              increase number of primary terminals',
   '.              decrease number of secondary terminals',
+  '␣ (space)      select next layout: normal / full',
   '[0-9]          select workspace 0 - 9',
   'shift-[0-9]    move selected terminal to workspace 0 - 9'
 ]
@@ -455,6 +456,7 @@ function drawBuffer (shell_id) {
 }
 
 function drawGuide (x, y, w, h) {
+  const fw = state.workspaces[state.focussed_workspace]
   if (state.show_help) {
     const hbY = Math.round(y + h * 0.05)
     const hbW = Math.max(Math.round(2 * w / 3), 64)
@@ -465,7 +467,11 @@ function drawGuide (x, y, w, h) {
     drawBoxView(...helpBoxRect, { isTop: true, lines: help })
 
     stdout.cursorTo(hbX + 2, hbY)
-    stdout.write('nomad help')
+    stdout.write(
+      ' nomad - help // space:' + (state.focussed_workspace + 1) +
+      ' term:' + (fw.focussed_shell + 1) +
+      ' view:' + ({ 0: 'normal', 1: 'full' }[fw.layout]) + ' '
+    )
 
     stdout.cursorTo(hbX + hbW - 21, hbY)
     stdout.write('(press H to toggle)')
@@ -481,7 +487,7 @@ function drawGuide (x, y, w, h) {
       'help    H   select  jk (^ to move)',
       'quit    Q   new     backspace',
       'close   C   toggle  ^-tab',
-      'resize  hl  layout  .,'
+      'resize  hl  layout  . ␣ ,'
     ] : [
       '',
       'help   H, quit  Q, select [^]jk',
@@ -493,7 +499,11 @@ function drawGuide (x, y, w, h) {
     drawBoxView(...helpBoxRect, { isTop: true, lines, shouldWrap: false })
 
     stdout.cursorTo(hbX + 2, hbY)
-    stdout.write(' nomad // workspace ' + (state.focussed_workspace + 1) + ' ')
+    stdout.write(
+      ' nomad // ' + (state.focussed_workspace + 1) +
+      ':' + (fw.focussed_shell + 1) +
+      ' // ' + ({ 0: 'normal', 1: 'full' }[fw.layout]) + ' '
+    )
   }
 }
 
@@ -553,14 +563,32 @@ function render () {
 
   stdout.cursorTo(1, 1)
 
-  const startIndex = limit(fw.start_last_shell_index, 0, fw.shells.length - 1)
+  // TODO: Column layout
+  if (fw.layout === 1) {
+    renderFullScreen(fw)
+  } else if (fw.layout === 0) {
+    renderTwoPanes(fw)
+  }
+}
 
+function renderFullScreen (fw) {
+  const { x: viewX, y: viewY, w: viewW, h: viewH } =
+    viewTransform({ x: 0, y: 0, w: 100, h: 100 })
+
+  const shellId = fw.shells[fw.focussed_shell].id
+
+  // TODO: eugh. Should reset this more carefully
+  areas = {}
+  setBufferArea(viewX + 1, viewY, viewW, viewH - 1, shellId)
+  drawBuffer(shellId)
+  drawBox(0, 0, 100, 100, true)
+}
+
+function renderTwoPanes (fw) {
+  const startIndex = limit(fw.start_last_shell_index, 0, fw.shells.length - 1)
   const startDivisions = startIndex + 1
   const endDivisions = fw.shells.length - startDivisions
 
-  // TODO: other layouts:
-  //   1. Columns(?)
-  //   2. Full screen
   let w = 0
 
   if (endDivisions === 0) {
