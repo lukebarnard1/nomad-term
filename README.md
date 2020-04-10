@@ -22,12 +22,13 @@ $ git clone git@github.com:lukebarnard1/nomad-term.git
 
 Install dependencies
 ```
+$ cd nomad-term
 $ npm install
 ```
 
 Install into /usr/local/bin/
 ```
-$ ln -s $(pwd)/nomad-term/index.js /usr/local/bin/nomad
+$ ln -s $(pwd)/index.js /usr/local/bin/nomad
 ```
 
 ## Usage
