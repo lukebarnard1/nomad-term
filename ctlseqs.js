@@ -97,6 +97,7 @@ const CTL_SEQS = {
   SD: 'CSI Ps T',
   SD2: 'CSI Ps ^',
   mouse_tracking: 'CSI Ps ; Ps ; Ps ; Ps ; Ps T',
+  nml_tracking: 'CSI M Pchar Pchar Pchar',
   ECH: 'CSI Ps X',
   CBT: 'CSI Ps Z',
   HPA: 'CSI Pm `',
@@ -154,7 +155,7 @@ const fns = vals.map((s, ix) => {
   const prms = s
   // MUST remove CSI AND a space
     .replace(/^CSI /, '')
-    .replace(/P[a-z]/, 'Pm')
+    .replace(/P[a-z] /, 'Pm ')
     .replace(/ ; P./g, '')
     .split(' ')
 
@@ -168,9 +169,15 @@ const fns = vals.map((s, ix) => {
 
     const rest = [...prms]
     let params = []
+    let chars = ''
     while (rest.length > 0) {
       const k = rest.shift()
       switch (k) {
+        case 'Pchar': {
+          chars = chars + p[0]
+          p = p.slice(1)
+          break
+        }
         case 'Pm': {
           const match = p.match(/^[0-9;]+/)
           if (!match) {
@@ -193,6 +200,7 @@ const fns = vals.map((s, ix) => {
       }
       if (p.length === 0) {
         return {
+          chars,
           params: params.map(Number),
           code: keys[ix]
         }

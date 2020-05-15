@@ -90,6 +90,16 @@ class SubTerminal {
       // 2: String
     }
 
+    // Lines of buffer that has been scrolled out of view
+    this.oldBuffer = []
+
+    this.scrollY = 0
+    // TODO: accelerated scrolling
+    this.scrollSpeed = 3
+
+    // TODO: DECSET/DECRST
+    this.flags = {}
+
     this.formatBuffer = {
       // 0: {
       //   fg: {
@@ -125,6 +135,42 @@ class SubTerminal {
   getCursorPosition () { return this.cursor }
 
   writeToProc (data) {
+    const seqs = getCtlSeqs(data.toString('utf8')).outs
+
+    log.info({
+      seqs
+    })
+
+    const [seq] = seqs
+    if (seq) {
+      switch (seq.code) {
+        case 'nml_tracking':
+          switch (seq.chars[0]) {
+            case 'a': // scroll up
+              this.scrollY = (this.scrollY || 0) - this.scrollSpeed
+              if (this.scrollY < 0) this.scrollY = 0
+              break
+            case '`': // scroll down
+              this.scrollY = (this.scrollY || 0) + this.scrollSpeed
+              if (this.scrollY > this.oldBuffer.length) this.scrollY = this.oldBuffer.length
+              break
+          }
+
+          this.render()
+
+          // TODO: write data to the program IF the program itself
+          // has enabled mouse tracking (e.g. scrolling in vim). This
+          // is controlled with DECSET/RST.
+          return
+        case 'CUP': // up
+          // this.updateScrollRegion(-1)
+          break
+        case 'CUD': // down
+        // this.updateScrollRegion(1, 0)
+          break
+      }
+    }
+
     this.writeProcCb(data)
   }
 
@@ -186,6 +232,19 @@ class SubTerminal {
       } else {
         newBuffer[ix] = this.buffer[ix] || ''
         newFormatBuffer[ix] = this.formatBuffer[ix] || []
+      }
+    }
+
+    // If there are lines being scrolled off the top of the buffer, add them to
+    // the oldBuffer
+    if (d > 0) {
+      this.oldBuffer = this.oldBuffer || []
+      for (let ix = 0; ix < d; ix++) {
+        if (typeof this.buffer[ix] !== 'string') {
+          this.oldBuffer.push('????????')
+          continue
+        }
+        this.oldBuffer.push(this.buffer[ix].slice(0).replace(/[\n\r]/g, '') + ' ')
       }
     }
 
@@ -540,15 +599,19 @@ class SubTerminal {
     for (let i = 0; i < h; i++) {
       let line = Buffer.alloc(w, ' ')
 
-      const bufY = i
+      const bufY = i - (this.scrollY || 0)
 
+      if (bufY < 0 && this.oldBuffer && this.oldBuffer[this.oldBuffer.length + bufY - 1]) {
+        line = this.oldBuffer[this.oldBuffer.length + bufY].toString('utf8').slice(0, w)
+        line = line + Buffer.alloc(w - line.length, ' ')
+      } else
       if (this.buffer[bufY]) {
         line = this.buffer[bufY].toString('utf8').slice(0, w)
         line = line + Buffer.alloc(w - line.length, ' ')
       }
 
       // TODO: allow programs to hide cursor
-      if (i === this.cursor.y && isFocussed) {
+      if (bufY === this.cursor.y && isFocussed) {
         line = line.slice(0, this.cursor.x) + '_' + line.slice(this.cursor.x + 1)
       }
 
@@ -691,6 +754,9 @@ class SubTerminal {
       const newBufferLine = oldLine.slice(0, bufX) + t + oldLine.slice(bufX + (shouldInsert ? 0 : t.length))
 
       this.buffer[bufY] = newBufferLine
+
+      // Scroll to the bottom because the program is trying to show us something :)
+      this.scrollY = 0
 
       if (t.length > 0) {
         // TODO indent...

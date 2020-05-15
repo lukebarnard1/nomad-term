@@ -687,6 +687,9 @@ function start () {
   // Hide cursor
   stdout.write('\u001b[?25l')
 
+  // Enable mouse tracking
+  stdout.write('\u001b[?1000h')
+
   applyAction({
     type: 'LAUNCH_SHELL'
   })
