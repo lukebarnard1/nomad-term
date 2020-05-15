@@ -227,7 +227,6 @@ class SubTerminal {
         } else {
           newBuffer[ix] = ''
         }
-        log.info({ isWithin: ix, n: newBuffer[ix], o: this.buffer[ix] })
         newFormatBuffer[ix] = this.formatBuffer[ix + d] || []
       } else {
         newBuffer[ix] = this.buffer[ix] || ''
@@ -720,12 +719,6 @@ class SubTerminal {
   }
 
   insertText (text) {
-    // Inserting in top left 0,0
-    //
-    // this means we set the offset of the viewport
-    // to the start of the buffer?
-    //
-
     if (text.includes('\u001b')) {
       log.error(new Error('insertText ESC ' + text))
       return
