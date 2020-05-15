@@ -420,6 +420,9 @@ class SubTerminal {
   }
 
   clearBuffer () {
+    // Fix for exiting full-screen programs
+    this.cursor.x = 0
+    this.cursor.y = 0
     this.buffer = {}
     this.formatBuffer = {}
   }
