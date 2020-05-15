@@ -241,7 +241,10 @@ class SubTerminal {
         if (typeof this.buffer[ix] !== 'string') {
           continue
         }
-        this.oldBuffer.push(this.buffer[ix].slice(0).replace(/[\n\r]/g, '') + ' ')
+        this.oldBuffer.push({
+          line: this.buffer[ix].slice(0).replace(/[\n\r]/g, '') + ' ',
+          fmt: this.formatBuffer[ix]
+        })
       }
     }
 
@@ -598,24 +601,26 @@ class SubTerminal {
 
     for (let i = 0; i < h; i++) {
       let line = Buffer.alloc(w, ' ')
+      let formats = []
 
       const bufY = i - (this.scrollY || 0)
 
-      if (bufY < 0 && this.oldBuffer && this.oldBuffer[this.oldBuffer.length + bufY - 1]) {
-        line = this.oldBuffer[this.oldBuffer.length + bufY].toString('utf8').slice(0, w)
+      if (bufY < 0 && this.oldBuffer[this.oldBuffer.length + bufY - 1]) {
+        const oldEl = this.oldBuffer[this.oldBuffer.length + bufY]
+        line = oldEl.line.toString('utf8').slice(0, w)
         line = line + Buffer.alloc(w - line.length, ' ')
+        formats = oldEl.fmt
       } else
       if (this.buffer[bufY]) {
         line = this.buffer[bufY].toString('utf8').slice(0, w)
         line = line + Buffer.alloc(w - line.length, ' ')
+        formats = this.formatBuffer[bufY] || []
       }
 
       // TODO: allow programs to hide cursor
       if (bufY === this.cursor.y && isFocussed) {
         line = line.slice(0, this.cursor.x) + '_' + line.slice(this.cursor.x + 1)
       }
-
-      let formats = this.formatBuffer[bufY] || []
 
       if (highlight) {
         formats = [{ start: 0, length: w, format: { bg: { color: 7 }, fg: { color: 8 } } }]
