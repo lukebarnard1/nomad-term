@@ -237,10 +237,8 @@ class SubTerminal {
     // If there are lines being scrolled off the top of the buffer, add them to
     // the oldBuffer
     if (d > 0) {
-      this.oldBuffer = this.oldBuffer || []
       for (let ix = 0; ix < d; ix++) {
         if (typeof this.buffer[ix] !== 'string') {
-          this.oldBuffer.push('????????')
           continue
         }
         this.oldBuffer.push(this.buffer[ix].slice(0).replace(/[\n\r]/g, '') + ' ')

@@ -196,6 +196,9 @@ function exit () {
   clearScreen()
   // Show the cursor
   stdout.write('\u001b[?25h')
+  // Disable mouse tracking
+  stdout.write('\u001b[?1000l')
+
   process.exit()
 }
 
