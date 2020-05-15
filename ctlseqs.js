@@ -174,6 +174,9 @@ const fns = vals.map((s, ix) => {
       const k = rest.shift()
       switch (k) {
         case 'Pchar': {
+          if (p.indexOf('\u001b') !== -1) {
+            return false
+          }
           chars = chars + p[0]
           p = p.slice(1)
           break
