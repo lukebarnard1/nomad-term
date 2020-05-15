@@ -279,11 +279,11 @@ class SubTerminal {
     const newFormat = {
       ...this.format,
       ...this.getFormatChange(params, true)
-      }
+    }
     this.format = newFormat
   }
 
-  getFormatChange (params, initial=false) {
+  getFormatChange (params, initial = false) {
     const reset = {
       bright: false,
       faint: false,

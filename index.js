@@ -307,7 +307,7 @@ function viewTransform (c) {
 function drawBox (x, y, w, h, isTop) {
   const { x: viewX, y: viewY, w: viewW, h: viewH } = viewTransform({ x, y, w, h })
 
-  drawBoxView(viewX, viewY, viewW, viewH, {isTop})
+  drawBoxView(viewX, viewY, viewW, viewH, { isTop })
 }
 
 function wrapLine (s, w) {
@@ -330,7 +330,7 @@ function wrapLine (s, w) {
   return res
 }
 
-function drawBoxView (viewX, viewY, viewW, viewH, {isTop, lines, shouldWrap=true}) {
+function drawBoxView (viewX, viewY, viewW, viewH, { isTop, lines, shouldWrap = true }) {
   const [x, y, w, h] = [viewX, viewY, viewW, viewH].map(Math.round)
   for (let i = 0; i < (h - 1); i++) {
     stdout.cursorTo(x, y + 1 + i)
