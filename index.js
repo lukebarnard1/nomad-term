@@ -215,7 +215,7 @@ function mapKeyToAction (key) {
     // shift-tab : ^[[Z
     '\u001b\u005bZ': { type: 'MODE_TOGGLE' },
 
-    'H': { type: 'HELP_TOGGLE' },
+    H: { type: 'HELP_TOGGLE' },
 
     C: { type: 'CLOSE_FOCUSSED_SHELL' },
 
