@@ -174,6 +174,7 @@ const fns = vals.map((s, ix) => {
       const k = rest.shift()
       switch (k) {
         case 'Pchar': {
+          // TODO: Not sure if we need this
           if (p.indexOf('\u001b') !== -1) {
             return false
           }
@@ -233,7 +234,8 @@ const tests = [
   'just text yo' + ESC + '[mtext',
 
   'abig' + ESC + '[M',
-  '\r\u001b[K\u001b[H\u001bM   if (text.includes'
+  '\r\u001b[K\u001b[H\u001bM   if (text.includes',
+  '\u001b[M\u001b[r'
 ]
 
 fns.push({
@@ -243,16 +245,18 @@ fns.push({
   }
 })
 
-const getCodes = (s) => {
+const getCodes = (s, disabledCodes) => {
   if (s === ESC || s === CTL.CSI.str) {
     return { some: true }
   }
 
   const matches = []
 
+  const enabledFns = disabledCodes ? fns.filter(f => disabledCodes.indexOf(f.code) === -1) : fns
+
   let i = 0
-  while (matches.length < 2 && i < fns.length) {
-    const res = fns[i].test(s)
+  while (matches.length < 2 && i < enabledFns.length) {
+    const res = enabledFns[i].test(s)
     if (res) {
       matches.push(res)
     }
@@ -297,7 +301,7 @@ const addText = (text) => {
   return outs
 }
 
-const getCtlSeqs = (str) => {
+const getCtlSeqs = (str, disabledCodes) => {
   // List of output sequences/text
   let outs = []
 
@@ -333,7 +337,7 @@ const getCtlSeqs = (str) => {
     i++
     test = test + rest[i]
 
-    const codeResult = getCodes(test)
+    const codeResult = getCodes(test, disabledCodes)
     none = codeResult.none
     some = codeResult.some
     exact = codeResult.exact
@@ -356,7 +360,7 @@ const getCtlSeqs = (str) => {
   }
 
   if (rest.length !== str.length) {
-    const next = getCtlSeqs(rest)
+    const next = getCtlSeqs(rest, disabledCodes)
     outs = outs.concat(next.outs)
     rest = next.rest
   }
@@ -368,9 +372,9 @@ const getCtlSeqs = (str) => {
   }
 }
 
-const res = tests.map(getCtlSeqs)
+const res = tests.map(t => getCtlSeqs(t))
 
-log.info(JSON.stringify(res, null, 2))
+console.info(JSON.stringify(res, null, 2))
 
 module.exports = {
   getCtlSeqs

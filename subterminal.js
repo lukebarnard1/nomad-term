@@ -135,7 +135,9 @@ class SubTerminal {
   getCursorPosition () { return this.cursor }
 
   writeToProc (data) {
-    const seqs = getCtlSeqs(data.toString('utf8')).outs
+    // Disable "DL" because there's a bug in ctlseqs that mistakes it for mouse
+    // tracking and will cause the next sequence to break
+    const seqs = getCtlSeqs(data.toString('utf8'), ['DL']).outs
 
     log.info({
       seqs
@@ -145,6 +147,19 @@ class SubTerminal {
     if (seq) {
       switch (seq.code) {
         case 'nml_tracking':
+
+          // If DECCKM and "Alternate Buffer", send mouse events to the
+          // program... Not sure why.
+          if (this.flags[1]) { // && this.flags[47]) {
+            const c = {
+              '`': '\u000b',
+              a: '\n'
+            }[seq.chars[0]]
+            log.info({ sendingToProc: c })
+            if (c) this.writeProcCb(c)
+            return
+          }
+
           switch (seq.chars[0]) {
             case 'a': // scroll up
               this.scrollY = (this.scrollY || 0) - this.scrollSpeed
@@ -157,10 +172,6 @@ class SubTerminal {
           }
 
           this.render()
-
-          // TODO: write data to the program IF the program itself
-          // has enabled mouse tracking (e.g. scrolling in vim). This
-          // is controlled with DECSET/RST.
           return
         case 'CUP': // up
           // this.updateScrollRegion(-1)
@@ -560,6 +571,10 @@ class SubTerminal {
       this.deleteCharacter(params[0])
     } else if (seq.code === 'DECSTBM') {
       this.setScrollMargins(params[0], params[1])
+    } else if (seq.code === 'DECSET') {
+      this.flags[params[0]] = true
+    } else if (seq.code === 'DECRST') {
+      this.flags[params[0]] = false
     } else if (seq.code === 'ED') {
       // CSI Ps J  Erase in Display (ED), VT100.
       //   Ps = 0  ⇒  Erase Below (default).
@@ -777,15 +792,24 @@ class SubTerminal {
   }
 
   write (data) {
-    log.info({ data: data.toString('utf8') })
-
     const currentRest = this.rest || ''
     this.rest = ''
 
+    // TODO: Some sequences can be mistaken for others that are a prefix
+    // of themselves. E.g. DL is CSI Pm M , and can therefore be CSI M,
+    // which can be mistaken for CSI M Pchar Pchar Pchar (nml_tracking).
+    //
+    // By disabling nml_tracking here and disabling DL elsewhere, this
+    // bug is avoided.
+    //
+    // The better solution would be to do a different kind of matching
+    // that isn't based on longest prefix. I think?
     const {
       outs: seqs,
       rest
-    } = getCtlSeqs(currentRest + data.toString('utf8'))
+    } = getCtlSeqs(currentRest + data.toString('utf8'), ['nml_tracking'])
+
+    log.info({ data: data.toString('utf8'), seqs })
 
     if (rest) {
       this.rest = rest
