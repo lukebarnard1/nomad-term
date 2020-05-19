@@ -155,8 +155,8 @@ class SubTerminal {
           // program... Not sure why.
           if (this.flags[1]) { // && this.flags[47]) {
             const c = {
-              '`': '\u000b',
-              a: '\n'
+              '`': '\u001bOA',
+              a: '\u001bOB'
             }[seq.chars[0]]
             log.info({ sendingToProc: c })
             if (c) this.writeProcCb(c)
