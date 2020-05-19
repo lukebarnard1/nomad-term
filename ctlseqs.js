@@ -1,4 +1,3 @@
-
 const log = require('./log')
 
 const ESC = '\u001b'
@@ -218,26 +217,6 @@ const fns = vals.map((s, ix) => {
   }
 })
 
-const tests = [
-  ESC + '[m',
-  'test' + ESC + '[myo',
-  ESC + '[1;2m',
-  ESC + '[555555;4*y',
-  ESC + '[$w',
-  ESC + '[m',
-  ESC + '[1;2;3;4;5;6;7;8;9;123;456m',
-  ESC + '[1;2;3;4;5;m;7;8;9;123;456m',
-  'test' + ESC + '[myo and some more' + ESC + '[5;4"pother',
-  ESC + '[2 q',
-  '\u001b7\u001b[?47h\u001b[?1h\u001b=\u001b[H\u001b[2J\u001b[?2004h\u001b[?1004h\u001b[8;59;189t\u001b[r\u001b[1;1H\u001b[m\u001b[38;5;252m\u001b[48;5;237m                                                                                                                                                                                             \r\n                                                                                                                                                                                             \r\n                                                                                                                                                                                             \r\n                                                                                                                                                                                             \r\n                                                                                                                                                                                 ',
-  ESC + '[1;2;3;4mand' + ESC + '[1;2;3',
-  'just text yo' + ESC + '[mtext',
-
-  'abig' + ESC + '[M',
-  '\r\u001b[K\u001b[H\u001bM   if (text.includes',
-  '\u001b[M\u001b[r'
-]
-
 fns.push({
   test: (p) => {
   // TODO better support for non CSI seqs
@@ -371,10 +350,6 @@ const getCtlSeqs = (str, disabledCodes) => {
     rest
   }
 }
-
-const res = tests.map(t => getCtlSeqs(t))
-
-console.info(JSON.stringify(res, null, 2))
 
 module.exports = {
   getCtlSeqs
