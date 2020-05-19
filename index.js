@@ -189,13 +189,15 @@ function applyAction (action) {
 const subTerminals = {}
 
 function clearScreen () {
-  stdout.write('\u001b[2J')
+  stdout.write('\u001b[2J\u001b[H')
 }
 
 function exit () {
   clearScreen()
   // Show the cursor
   stdout.write('\u001b[?25h')
+  // Normal buffer
+  stdout.write('\u001b[?47l')
   // Disable mouse tracking
   stdout.write('\u001b[?1000l')
 
@@ -689,6 +691,9 @@ function start () {
 
   // Hide cursor
   stdout.write('\u001b[?25l')
+
+  // Alt buffer
+  stdout.write('\u001b[?47h')
 
   // Enable mouse tracking
   stdout.write('\u001b[?1000h')
