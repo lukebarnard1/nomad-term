@@ -39,7 +39,7 @@ module.exports = () => runTests('SubTerminal handles ', [
   },
   {
     description: 'inserting text after basic cursor movement',
-    actual: getSubTerminalState('testing\n\n\n\n\n\rtesting\u001b[2A\rhello world').getLine(3).slice(0, 11),
+    actual: getSubTerminalState('testing\n\n\n\n\n\rtoasting\u001b[2A\rhello world\u001b[3B').getLine(3).slice(0, 11),
     expected: 'hello world'
   },
   {

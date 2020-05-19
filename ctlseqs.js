@@ -120,10 +120,11 @@ const CTL_SEQS = {
   DECRQM: 'CSI Ps $ p',
   DECSCUSR: 'CSI Ps SP q',
   DECSCA: 'CSI Ps " q',
-  DECSTBM: 'CSI Ps ; Ps r',
+  DECSTBM: 'CSI Ps r',
   restore_DECSET: 'CSI ? Pm r',
   DECCARA: 'CSI Pt ; Pl ; Pb ; Pr ; Ps $ r',
   reverse_DECCARA: 'CSI Pt ; Pl ; Pb ; Pr ; Ps $ t',
+  window_management: 'CSI Ps ; Ps ; Ps t',
   SCOSC: 'CSI s',
   restore_SCOSC: 'CSI u',
   DECSLRM: 'CSI Pl ; Pr s',
@@ -205,7 +206,8 @@ const fns = vals.map((s, ix) => {
         return {
           chars,
           params: params.map(Number),
-          code: keys[ix]
+          code: keys[ix],
+          rest
         }
       }
     }
@@ -219,8 +221,8 @@ const fns = vals.map((s, ix) => {
 
 fns.push({
   test: (p) => {
-  // TODO better support for non CSI seqs
-    if (p === '\u001bM') return { code: 'RI' }
+    // TODO better support for non CSI seqs
+    if (p === '\u001bM') return { code: 'RI', rest: [] }
   }
 })
 
@@ -242,9 +244,11 @@ const getCodes = (s, disabledCodes) => {
     i++
   }
 
+  const first = matches[0]
+
   return {
     some: matches.length > 0,
-    exact: matches.length === 1 && matches[0],
+    exact: first && first.rest && first.rest.length === 0 && first,
     none: matches.length === 0
   }
 }

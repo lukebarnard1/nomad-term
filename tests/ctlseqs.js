@@ -77,7 +77,7 @@ module.exports = () => runTests('ctlseqs.js ', [
     description: 'can handle the vim sequence with no text (sequences)',
     actual: testCase(vimSeq).sequenceCodes,
     expected: [
-      'DECSET', 'DECSET', 'CUP', 'ED', 'DECSET', 'DECSET', 'DECSTBM', 'CUP', 'SGR', 'SGR', 'SGR',
+      'DECSET', 'DECSET', 'CUP', 'ED', 'DECSET', 'DECSET', 'window_management', 'DECSTBM', 'CUP', 'SGR', 'SGR', 'SGR',
       'CR', 'NL',
       'CR', 'NL',
       'CR', 'NL',
@@ -90,30 +90,33 @@ module.exports = () => runTests('ctlseqs.js ', [
     expected: [' <- complete sequence, incomplete sequence -> ']
   },
   {
-    description: 'will not return partial sequences',
-    actual: testCase('\u001b[1;2;3;').sequenceCodes,
-    expected: []
-  },
-  {
     description: 'can handle lack of parameters',
     actual: testCase('\u001b[m').sequenceParameters,
     expected: [[]]
   },
   {
+    description: 'handle cariage returns before sequences',
+    actual: testCase('\r\u001b[K\u001b[H   if (text.includes').sequenceCodes,
+    expected: ['CR', 'EL', 'CUP']
+  },
+  {
+    description: 'handles RI, which does not start with CSI',
+    actual: testCase('\u001bM').sequenceCodes,
+    expected: ['RI']
+  },
+  {
     description: 'can handle deletion of lines without parameters',
     actual: testCase('\u001b[M').sequenceParameters,
-    expected: [[]],
-    KNOWN_BUG: true
+    expected: [[]]
   },
   {
     description: 'handles ambiguous sequences',
-    actual: testCase('\u001b[M\u001b[r').sequenceParameters,
-    expected: null,
-    KNOWN_BUG: true
+    actual: testCase('\u001b[M\u001b[r\u001b[Maaa\u001b[r').sequenceCodes,
+    expected: ['DL', 'DECSTBM', 'nml_tracking', 'DECSTBM']
   },
   {
-    description: 'handle cariage returns before sequences',
-    actual: testCase('\r\u001b[K\u001b[H\u001bM   if (text.includes').sequenceCodes,
-    expected: ['CR', 'EL', 'CUP', 'RI']
+    description: 'will not return partial sequences',
+    actual: testCase('\u001b[1;2;3;').sequenceCodes,
+    expected: []
   }
 ])
