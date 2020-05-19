@@ -13,7 +13,8 @@ function uniqueId () {
 
 function filterParentEnv ({
   SSH_AUTH_SOCK,
-  HOME
+  HOME,
+  LANG
 }) {
   return {
     // Set name of the terminal to nomad!
@@ -22,7 +23,9 @@ function filterParentEnv ({
     // with the same ssh-agent that was in use by the parent shell.
     SSH_AUTH_SOCK,
     // Proxy HOME directory variable
-    HOME
+    HOME,
+    // Proxy LANG (e.g. en_GB.UTF-8 - vim uses this)
+    LANG
   }
 }
 
