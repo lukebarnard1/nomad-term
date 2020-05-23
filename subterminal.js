@@ -232,6 +232,10 @@ class SubTerminal {
   // Scroll lines in the scroll region by d
   updateScrollRegion (d) {
     log.info({ scrollingBy: d })
+
+    // Scroll to the bottom because the program is trying to show us something :)
+    this.scrollY = 0
+
     const newBuffer = {}
     const newFormatBuffer = {}
     for (let ix = 0; ix < this.size.rows; ix++) {
@@ -778,9 +782,6 @@ class SubTerminal {
       const newBufferLine = oldLine.slice(0, bufX) + t + oldLine.slice(bufX + (shouldInsert ? 0 : t.length))
 
       this.buffer[bufY] = newBufferLine
-
-      // Scroll to the bottom because the program is trying to show us something :)
-      this.scrollY = 0
 
       if (t.length > 0) {
         // TODO indent...
