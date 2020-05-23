@@ -226,18 +226,16 @@ fns.push({
   }
 })
 
-const getCodes = (s, disabledCodes) => {
+const getCodes = (s) => {
   if (s === ESC || s === CTL.CSI.str) {
     return { some: true }
   }
 
   const matches = []
 
-  const enabledFns = disabledCodes ? fns.filter(f => disabledCodes.indexOf(f.code) === -1) : fns
-
   let i = 0
-  while (matches.length < 2 && i < enabledFns.length) {
-    const res = enabledFns[i].test(s)
+  while (matches.length < 2 && i < fns.length) {
+    const res = fns[i].test(s)
     if (res) {
       matches.push(res)
     }
@@ -284,69 +282,66 @@ const addText = (text) => {
   return outs
 }
 
-const getCtlSeqs = (str, disabledCodes) => {
+const getCtlSeqs = (str) => {
   // List of output sequences/text
   let outs = []
-
-  const ixESC = str.indexOf(ESC)
 
   // The remaining data that has not been converted to
   // control sequences or text
   let rest = str
+  let prevRest
 
-  // consume text up to first ESC
-  if (ixESC !== -1) {
-    const text = str.slice(0, ixESC)
-
-    outs = outs.concat(addText(text))
-
-    // The remainder to be processed is after the text
-    rest = str.slice(ixESC)
-  } else {
-    // this is probably all text given lack of ESC
-    return {
-      outs: addText(str)
-    }
-  }
-
-  // Test for sequences adding character by character
-  // to find the longest exact match
-  let test = ''
-  let lastMatching
-  let lastTest
-  let i = -1
-  let none, exact, some
+  let lim = 1000
   do {
-    i++
-    test = test + rest[i]
+    prevRest = rest
+    // consume text up to first ESC
+    const ixESC = rest.indexOf(ESC)
+    if (ixESC !== -1) {
+      const text = rest.slice(0, ixESC)
 
-    const codeResult = getCodes(test, disabledCodes)
-    none = codeResult.none
-    some = codeResult.some
-    exact = codeResult.exact
+      outs = outs.concat(addText(text))
 
-    if (exact) {
-      lastMatching = exact
-      lastTest = test
+      // The remainder to be processed is after the text
+      rest = rest.slice(ixESC)
+    } else {
+    // this is probably all text given lack of ESC
+      return {
+        outs: [...outs, ...addText(rest)]
+      }
     }
-  } while (some && i < rest.length - 1)
+    // Test for sequences adding character by character
+    // to find the longest exact match
+    let test = ''
+    let lastMatching
+    let lastTest
+    let i = -1
+    let none, exact, some
+    do {
+      i++
+      test = test + rest[i]
 
-  if (lastMatching) {
-    outs.push(lastMatching)
-    rest = rest.slice(lastTest.length)
-  } else {
-    // Slice even if there was no match so that we don't get stuck
-    // on unrecognised sequences
-    if (none) {
-      rest = rest.slice(i + 1)
+      const codeResult = getCodes(test)
+      none = codeResult.none
+      some = codeResult.some
+      exact = codeResult.exact
+
+      if (exact) {
+        lastMatching = exact
+        lastTest = test
+      }
+    } while (some && i < rest.length - 1)
+
+    if (lastMatching) {
+      outs.push(lastMatching)
+      rest = rest.slice(lastTest.length)
+    } else {
+      // Slice even if there was no match so that we don't get stuck
+      // on unrecognised sequences
+      if (none) {
+        rest = rest.slice(i + 1)
+      }
     }
-  }
-
-  if (rest.length !== str.length) {
-    const next = getCtlSeqs(rest, disabledCodes)
-    outs = outs.concat(next.outs)
-    rest = next.rest
-  }
+  } while (rest.length !== prevRest.length && lim-- > 0)
 
   return {
     str,

@@ -140,7 +140,7 @@ class SubTerminal {
   writeToProc (data) {
     // Disable "DL" because there's a bug in ctlseqs that mistakes it for mouse
     // tracking and will cause the next sequence to break
-    const seqs = getCtlSeqs(data.toString('utf8'), ['DL']).outs
+    const seqs = getCtlSeqs(data.toString('utf8')).outs
 
     log.info({
       seqs
@@ -840,7 +840,7 @@ class SubTerminal {
     const {
       outs: seqs,
       rest
-    } = getCtlSeqs(currentRest + data.toString('utf8'), ['nml_tracking'])
+    } = getCtlSeqs(currentRest + data.toString('utf8'))
 
     log.info({ data: data.toString('utf8'), seqs })
 
