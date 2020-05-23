@@ -636,15 +636,17 @@ class SubTerminal {
 
       if (bufY < 0 && this.oldBuffer[this.oldBuffer.length + bufY - 1]) {
         const oldEl = this.oldBuffer[this.oldBuffer.length + bufY]
-        line = oldEl.line.toString('utf8').slice(0, w)
-        line = line + Buffer.alloc(w - line.length, ' ')
+        line = oldEl.line
         formats = oldEl.fmt
       } else
       if (this.buffer[bufY]) {
-        line = this.buffer[bufY].toString('utf8').slice(0, w)
-        line = line + Buffer.alloc(w - line.length, ' ')
+        line = this.buffer[bufY]
         formats = this.formatBuffer[bufY] || []
       }
+
+      const originalLine = line.toString('utf8').trimEnd()
+      line = originalLine.toString('utf8').slice(0, w)
+      line = line + (line.length < w ? Buffer.alloc(w - line.length, ' ') : '')
 
       // TODO: allow programs to hide cursor
       if (bufY === this.cursor.y && isFocussed) {
@@ -659,9 +661,29 @@ class SubTerminal {
       line = this.applyFormats(line, formats.map(k => k))
 
       lines.push(line)
+
+      let rest = originalLine
+      // let offset = 0
+      if (rest.length > w) {
+        rest = rest.slice(w)
+        const wrapped = rest.slice(0, w)
+        /* TODO
+        // offset += w
+        const formatted =
+          this.applyFormats(wrapped,
+            formats
+              .filter(k => k.start + k.length >= offset)
+              .map(k => ({ ...k, start: k.start < offset ? 0 : k.start - offset }))
+          )
+        */
+        lines.push(
+          wrapped +
+          (wrapped.length < w ? Buffer.alloc(w - wrapped.length, ' ') : '')
+        )
+      }
     }
 
-    return lines
+    return lines.slice(-h)
   }
 
   applyFormats (str, formats = []) {
