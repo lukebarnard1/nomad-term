@@ -194,7 +194,7 @@ class SubTerminal {
 
   // TODO: WRAPPING!
   resize (cols, rows) {
-    log.info({ resize: { cols, rows } })
+    log.info({ resize: { cols, rows }, c: this.cursor, sc: this.scrollY })
 
     this.resizeCb(cols, rows)
     if (this.size.cols === cols && this.size.rows === rows) return
@@ -617,11 +617,18 @@ class SubTerminal {
   drawSubTerminal (w, h, { highlight, isFocussed }) {
     const lines = []
 
+    const keys = Object.keys(this.buffer)
+    const l = parseInt(keys[keys.length - 1])
+
     for (let i = 0; i < h; i++) {
       let line = Buffer.alloc(w, ' ')
       let formats = []
 
-      const bufY = i - (this.scrollY || 0)
+      // Offset to make sure that the last `h` lines of the buffer
+      // are drawn, so that the view looks correct after a resize
+      const d = h - l - 1
+
+      const bufY = i - (this.scrollY || 0) - d
 
       if (bufY < 0 && this.oldBuffer[this.oldBuffer.length + bufY - 1]) {
         const oldEl = this.oldBuffer[this.oldBuffer.length + bufY]
