@@ -447,7 +447,7 @@ class SubTerminal {
   }
 
   clearEntireLine () {
-    const { x, y } = this.cursor
+    const { y } = this.cursor
     const bufY = y
 
     this.buffer[bufY] = undefined
@@ -455,7 +455,7 @@ class SubTerminal {
   }
 
   clearLine (right) {
-    const { x, y } = this.cursor
+    const { y } = this.cursor
     const bufY = y
 
     if (!this.buffer[bufY]) return
