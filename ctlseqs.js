@@ -96,7 +96,7 @@ const CTL_SEQS = {
   SD: 'CSI Ps T',
   SD2: 'CSI Ps ^',
   mouse_tracking: 'CSI Ps ; Ps ; Ps ; Ps ; Ps T',
-  nml_tracking: 'CSI M Pchar Pchar Pchar',
+  nml_tracking: 'CSI M Pchar',
   ECH: 'CSI Ps X',
   CBT: 'CSI Ps Z',
   HPA: 'CSI Pm `',
@@ -159,57 +159,46 @@ const fns = vals.map((s, ix) => {
     .replace(/ ; P./g, '')
     .split(' ')
 
+  const exps = prms.map((prm, i) => new RegExp(
+    '^' +
+    prms.slice(0, i + 1).map(k =>
+      ({
+        Pchar: '(?<Pchar>[^\u001b]*)',
+        Pm: '(?<Pm>[0-9;]*)',
+        SP: ' '
+      }[k] || `[\\\\${k}]`)
+    ).join('') +
+    '$'
+  )).slice(1)
+
+  const n = new RegExp('^[0-9;]+$')
+
+  const fTest = prms[0] === 'Pm' ? (p) => n.test(p) : () => false
+
   // Return true if p is a prefix of prms.
   const test = (p) => {
-    if (p === '\u001b') return { code: keys[ix] }
+    if (fTest(p)) {
+      return { code: keys[ix] }
+    }
 
-    if (p === '\u001b[') return { code: keys[ix] }
-    if (p[0] !== '\u001b' || p[1] !== '[') return false
-    p = p.slice(2)
-
-    const rest = [...prms]
-    let params = []
-    let chars = ''
-    while (rest.length > 0) {
-      const k = rest.shift()
-      switch (k) {
-        case 'Pchar': {
-          // TODO: Not sure if we need this
-          if (p.indexOf('\u001b') !== -1) {
-            return false
-          }
-          chars = chars + p[0]
-          p = p.slice(1)
-          break
-        }
-        case 'Pm': {
-          const match = p.match(/^[0-9;]+/)
-          if (!match) {
-            // try without parameters
-            continue
-          }
-          params = match[0].split(';')
-          p = p.slice(match[0].length)
-          break
-        }
-        case 'SP': {
-          if (p[0] !== ' ') return false
-          p = p.slice(1)
-          break
-        }
-        default: {
-          if (p[0] !== k) return false
-          p = p.slice(1)
-        }
+    const results = exps.map(e => e.exec(p))
+    const matching = results.filter(r => r)
+    const result = matching[matching.length - 1]
+    if (result && result[0].length && result[0].length <= p.length) {
+      const { groups } = result
+      const params = groups && groups.Pm ? groups.Pm.split(';').map(Number) : []
+      const chars = groups && groups.Pchar ? groups.Pchar : ''
+      const rest = { length: results.length - results.indexOf(result) - 1 }
+      const returning =
+      {
+        chars,
+        params: [...params],
+        code: keys[ix],
+        rest
       }
-      if (p.length === 0) {
-        return {
-          chars,
-          params: params.map(Number),
-          code: keys[ix],
-          rest
-        }
-      }
+      return returning
+    } else {
+      return false
     }
   }
 
@@ -219,23 +208,28 @@ const fns = vals.map((s, ix) => {
   }
 })
 
-fns.push({
-  test: (p) => {
-    // TODO better support for non CSI seqs
-    if (p === '\u001bM') return { code: 'RI', rest: [] }
-  }
-})
+const r = new RegExp('^\u001b\\[?$')
+const cache = new Map()
 
 const getCodes = (s) => {
-  if (s === ESC || s === CTL.CSI.str) {
+  // TODO: better support for non-CSI seqs
+  if (s === '\u001bM') return { exact: { code: 'RI', rest: [] } }
+  if (r.test(s)) {
     return { some: true }
   }
 
   const matches = []
 
+  const rest = s.slice(2)
+
+  if (cache.has(s)) {
+    log.info({ s, cache: cache.get(s) })
+    return { exact: { ...cache.get(s), params: cache.get(s).params.slice(0) } }
+  }
+
   let i = 0
   while (matches.length < 2 && i < fns.length) {
-    const res = fns[i].test(s)
+    const res = fns[i].test(rest)
     if (res) {
       matches.push(res)
     }
@@ -243,10 +237,15 @@ const getCodes = (s) => {
   }
 
   const first = matches[0]
+  const exact = first && first.rest && first.rest.length === 0 && first
+
+  if (exact && matches.length === 0) {
+    cache.set(s, { ...exact, params: exact.params.slice(0) })
+  }
 
   return {
     some: matches.length > 0,
-    exact: first && first.rest && first.rest.length === 0 && first,
+    exact,
     none: matches.length === 0
   }
 }
@@ -283,6 +282,7 @@ const addText = (text) => {
 }
 
 const getCtlSeqs = (str) => {
+  if (typeof str !== 'string') throw new Error('this is not a string')
   // List of output sequences/text
   let outs = []
 
@@ -291,7 +291,6 @@ const getCtlSeqs = (str) => {
   let rest = str
   let prevRest
 
-  let lim = 1000
   do {
     prevRest = rest
     // consume text up to first ESC
@@ -299,7 +298,10 @@ const getCtlSeqs = (str) => {
     if (ixESC !== -1) {
       const text = rest.slice(0, ixESC)
 
-      outs = outs.concat(addText(text))
+      // concat is very expensive
+      if (text.length) {
+        outs = outs.concat(addText(text))
+      }
 
       // The remainder to be processed is after the text
       rest = rest.slice(ixESC)
@@ -318,7 +320,7 @@ const getCtlSeqs = (str) => {
     let none, exact, some
     do {
       i++
-      test = test + rest[i]
+      test = rest.slice(0, i + 1)
 
       const codeResult = getCodes(test)
       none = codeResult.none
@@ -341,7 +343,7 @@ const getCtlSeqs = (str) => {
         rest = rest.slice(i + 1)
       }
     }
-  } while (rest.length !== prevRest.length && lim-- > 0)
+  } while (rest.length !== prevRest.length)
 
   return {
     str,
