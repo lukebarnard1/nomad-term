@@ -212,16 +212,19 @@ const r = new RegExp('^\u001b\\[?$')
 const cache = new Map()
 
 const getCodes = (s) => {
-  // TODO: better support for non-CSI seqs
-  if (s === '\u001bM') return { exact: { code: 'RI', rest: [] } }
   if (r.test(s)) {
     return { some: true }
   }
+  // TODO: better support for non-CSI seqs
+  if (s === '\u001bM') return { exact: { code: 'RI', rest: [] } }
+  // FIXME: Don't cache DL - it's an ambiguous prefix of nml_tracking
+  if (s === '\u001b[M') return { some: true, exact: { code: 'DL', params: [], rest: [] } }
 
   const matches = []
 
   const rest = s.slice(2)
 
+  log.info({ cache: { size: cache.size } })
   if (cache.has(s)) {
     log.info({ s, cache: cache.get(s) })
     return { exact: { ...cache.get(s), params: cache.get(s).params.slice(0) } }
@@ -239,7 +242,7 @@ const getCodes = (s) => {
   const first = matches[0]
   const exact = first && first.rest && first.rest.length === 0 && first
 
-  if (exact && matches.length === 0) {
+  if (exact) {
     cache.set(s, { ...exact, params: exact.params.slice(0) })
   }
 

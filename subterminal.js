@@ -98,7 +98,7 @@ class SubTerminal {
 
     this.scrollY = 0
     // TODO: accelerated scrolling
-    this.scrollSpeed = 3
+    this.scrollSpeed = 1
 
     // TODO: DECSET/DECRST
     this.flags = {}
@@ -618,14 +618,24 @@ class SubTerminal {
     }
   }
 
-  drawSubTerminal (w, h, { highlight, isFocussed }) {
+  drawSubTerminal (w, h, { isFocussed }) {
     const lines = []
 
     const keys = Object.keys(this.buffer)
     const l = parseInt(keys[keys.length - 1])
 
+    /*
+     * TODO
+     *
+     * Lines should be drawn when they change in the buffer so that
+     * they can be accessed very quickly when drawing the sub terminal.
+     *
+     * Ideally this is in a way where they can be wrapped post-hoc in
+     * this function.
+     */
+
     for (let i = 0; i < h; i++) {
-      let line = Buffer.alloc(w, ' ')
+      let line = ''
       let formats = []
 
       // Offset to make sure that the last `h` lines of the buffer
@@ -645,16 +655,14 @@ class SubTerminal {
       }
 
       const originalLine = line.toString('utf8').trimEnd()
+
       line = originalLine.toString('utf8').slice(0, w)
       line = line + (line.length < w ? Buffer.alloc(w - line.length, ' ') : '')
 
       // TODO: allow programs to hide cursor
+      // TODO: draw cursor elsewhere, otherwise we can't cache drawn lines easily
       if (bufY === this.cursor.y && isFocussed) {
         line = line.slice(0, this.cursor.x) + '_' + line.slice(this.cursor.x + 1)
-      }
-
-      if (highlight) {
-        formats = [{ start: 0, length: w, format: { bg: { color: 7 }, fg: { color: 8 } } }]
       }
 
       // TODO: Pointless k => k ?
