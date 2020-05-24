@@ -836,15 +836,6 @@ class SubTerminal {
     const currentRest = this.rest || ''
     this.rest = ''
 
-    // TODO: Some sequences can be mistaken for others that are a prefix
-    // of themselves. E.g. DL is CSI Pm M , and can therefore be CSI M,
-    // which can be mistaken for CSI M Pchar Pchar Pchar (nml_tracking).
-    //
-    // By disabling nml_tracking here and disabling DL elsewhere, this
-    // bug is avoided.
-    //
-    // The better solution would be to do a different kind of matching
-    // that isn't based on longest prefix. I think?
     const {
       outs: seqs,
       rest
