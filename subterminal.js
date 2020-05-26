@@ -439,11 +439,10 @@ class SubTerminal {
   }
 
   clearBuffer () {
-    // Fix for exiting full-screen programs
-    this.cursor.x = 0
-    this.cursor.y = 0
-    this.buffer = {}
-    this.formatBuffer = {}
+    this.buffer =
+      new Array(this.size.rows).fill(null).reduce((acc, val, ix) => ({ ...acc, [ix]: '' }), {})
+    this.formatBuffer =
+      new Array(this.size.rows).fill(null).reduce((acc, val, ix) => ({ ...acc, [ix]: [] }), {})
   }
 
   clearEntireLine () {
@@ -647,7 +646,7 @@ class SubTerminal {
       if (bufY < 0 && this.oldBuffer[this.oldBuffer.length + bufY - 1]) {
         const oldEl = this.oldBuffer[this.oldBuffer.length + bufY]
         line = oldEl.line
-        formats = oldEl.fmt
+        formats = oldEl.fmt || []
       } else
       if (this.buffer[bufY]) {
         line = this.buffer[bufY]
