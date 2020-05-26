@@ -671,7 +671,7 @@ class SubTerminal {
 
       let rest = originalLine
       // let offset = 0
-      if (rest.length > w) {
+      if (rest.length > w && !this.flags[47]) { // disable wrapper on ALT_BUFFER
         rest = rest.slice(w)
         const wrapped = rest.slice(0, w)
         /* TODO
