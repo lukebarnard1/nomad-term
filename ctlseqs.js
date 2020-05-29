@@ -224,9 +224,7 @@ const getCodes = (s) => {
 
   const rest = s.slice(2)
 
-  log.info({ cache: { size: cache.size } })
   if (cache.has(s)) {
-    log.info({ s, cache: cache.get(s) })
     return { exact: { ...cache.get(s), params: cache.get(s).params.slice(0) } }
   }
 
