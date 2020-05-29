@@ -991,7 +991,7 @@ function reduceFormats (formats = [], format) {
       }
     }
     return fs
-  }).reduce((a, b) => a.concat(b), [])
+  }).flat()
 
   const result = [...nonIntersectingFormats, ...newIntersectingFormats, format].sort((a, b) => a.start - b.start)
 
