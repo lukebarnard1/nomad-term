@@ -498,7 +498,9 @@ class SubTerminal {
   }
 
   checkScroll () {
-    const d = this.getDeltaOutOfScrollMargins(this.cursor.y)
+    // Only allow max +/-1 otherwise vim starts to insert consecutive empty
+    // lines
+    const d = Math.sign(this.getDeltaOutOfScrollMargins(this.cursor.y))
     if (d !== 0) {
       this.updateScrollRegion(d)
       this.cursor.y = this.cursor.y - d
