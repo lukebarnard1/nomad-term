@@ -437,14 +437,10 @@ function drawBuffer (shell_id) {
   performance.mark('mark2')
   performance.measure('DRAW_SUB_TERMINAL', 'mark1', 'mark2')
 
-  // Clear sub terminal
-  const blankLine = new Array(w - 2).fill(' ').join('')
-
   const blob = lines.map(
     (l, ix) =>
       lineHasChanged(y, x, l)
-        ? '\u001b[' + [y + 2 + ix, x + 1].join(';') + 'H' + blankLine +
-              '\u001b[' + [y + 2 + ix, x + 1].join(';') + 'H' + l
+        ? '\u001b[' + [y + 2 + ix, x + 1].join(';') + 'H' + l
         : ''
   ).join('')
 
