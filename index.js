@@ -695,6 +695,9 @@ function start () {
   // Alt buffer
   stdout.write('\u001b[?47h')
 
+  // title
+  stdout.write('\u001b]2;nomad\u0007')
+
   // Enable mouse tracking
   stdout.write('\u001b[?1000h')
 
