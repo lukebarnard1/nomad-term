@@ -625,6 +625,10 @@ function onData (data) {
     log.info({ state, action })
 
     switch (action.type) {
+      // Don't send the escape sequence to the program, otherwise
+      // it could cause unexpected results with it
+      case 'MODE_TOGGLE':
+        return
       case 'QUIT':
         if (state && state.mode) {
           exit()
