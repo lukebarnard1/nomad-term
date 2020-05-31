@@ -71,7 +71,7 @@ module.exports = () => runTests('SubTerminal handles ', [
   {
     description: 'clearing screen leaves cursor position unchanged',
     actual: getSubTerminalState('first\n\n\n\n\n\rsecond\u001b[1;5r\u001b[5;5H\u001b[3L\u001b[1M\u001b[2J').getCursorPosition(),
-    expected: { x: 4, y: 4 }
+    expected: { y: 4, x: 4 }
   },
   {
     description: 'clearing screen sets all lines in the buffer to the empty string',

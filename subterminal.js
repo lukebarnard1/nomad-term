@@ -204,12 +204,6 @@ class SubTerminal {
     this.setScrollMargins()
   }
 
-  setCursor (y, x) {
-    this.cursor = { x, y }
-
-    log.info({ cursor: this.cursor })
-  }
-
   // Set the scrolling margins of the screen. Rows outside of this
   // region are not affected by scrolling.
   setScrollMargins (t = 1, b = this.size.rows) {
@@ -430,14 +424,6 @@ class SubTerminal {
     }
   }
 
-  moveCursor (y, x) {
-    log.info({ moveCursor: { x, y } })
-    const cappedX = Math.max(Math.min(this.cursor.x + x, this.size.cols), 0)
-    const cappedY = Math.max(Math.min(this.cursor.y + y, this.size.rows), 0)
-
-    this.cursor = { x: cappedX, y: cappedY }
-  }
-
   clearBuffer () {
     this.buffer =
       new Array(this.size.rows).fill(null).reduce((acc, val, ix) => ({ ...acc, [ix]: '' }), {})
@@ -497,27 +483,98 @@ class SubTerminal {
     this.formatBuffer = formatTop
   }
 
-  checkScroll () {
-    // Only allow max +/-1 otherwise vim starts to insert consecutive empty
-    // lines
-    const d = Math.sign(this.getDeltaOutOfScrollMargins(this.cursor.y))
-    if (d !== 0) {
-      this.updateScrollRegion(d)
-      this.cursor.y = this.cursor.y - d
-    }
-  }
-
   setMode (mode, v) {
     this.modes[mode] = v
   }
 
-  reduceTerminalAction (seq) {
-    log.info({ seq })
+  updateCursor ({ x, y }, { cols, rows }, seq) {
+    const { code, text, params = [1] } = seq
+    // TODO: Test that default count is 1
+    const count = params[0] || 1
+    const tabWidth = 8
 
+    if (text) {
+      return { x: x + text.length, y }
+    }
+
+    switch (code) {
+      case 'HVP':
+      case 'CUP':
+        return {
+          y: (params[0] || 1) - 1,
+          x: (params[1] || 1) - 1
+        }
+      case 'CR':
+        return {
+          y,
+          x: 0
+        }
+      case 'HTS':
+        return {
+          y,
+          x: tabWidth + x - (x % tabWidth)
+        }
+      case 'CNL':
+        return {
+          y: y + count,
+          x: 0
+        }
+      case 'CHA':
+        return {
+          y,
+          x: params[0] - 1
+        }
+      case 'NL':
+        return {
+          y: y + 1,
+          x
+        }
+      case 'RI':
+        return {
+          y: y - 1,
+          x
+        }
+      case 'BS':
+        return {
+          y,
+          x: x - 1
+        }
+    }
+
+    if (code === 'CUU' || code === 'CUD' || code === 'CUF' || code === 'CUB') {
+      let dx = 0
+      let dy = 0
+      switch (code) {
+        case 'CUU': dy = -count; break
+        case 'CUD': dy = count; break
+        case 'CUF': dx = count; break
+        case 'CUB': dx = -count; break
+      }
+      return {
+        x: Math.max(Math.min(x + dx, cols), 0),
+        y: Math.max(Math.min(y + dy, rows), 0)
+      }
+    }
+
+    return { y, x }
+  }
+
+  reduceTerminalAction (seq) {
     if (seq.text) {
       this.insertText(seq.text)
-      return
     }
+
+    this.cursor = this.updateCursor(this.cursor, this.size, seq)
+
+    if (seq.code === 'NL' || seq.code === 'RI') {
+      const d = Math.sign(this.getDeltaOutOfScrollMargins(this.cursor.y))
+      if (d !== 0) {
+        this.updateScrollRegion(d)
+        this.cursor.y = this.cursor.y - d
+      }
+    }
+
+    log.info({ seq, cur: this.cursor, si: this.size })
 
     if (!seq.code) return
 
@@ -528,36 +585,8 @@ class SubTerminal {
 
     // TODO: do TDD to check each of these affect the terminal as expected
     // CUP HVP
-    if (seq.code === 'HVP' || seq.code === 'CUP') {
-      this.setCursor((params[0] || 1) - 1, (params[1] || 1) - 1)
-    } else if (action.whole_match === '\u0007') {
+    if (action.whole_match === '\u0007') {
       // bell
-    } else if (seq.code === 'CR') {
-      this.setCursor(this.cursor.y, 0)
-    } else if (seq.code === 'NL') {
-      this.cursor.y += 1
-
-      this.checkScroll()
-    } else if (seq.code === 'RI') {
-      this.cursor.y -= 1
-
-      this.checkScroll()
-    } else if (seq.code === 'BS') {
-      this.cursor.x -= 1
-    } else if (seq.code === 'HTS') {
-      const tabWidth = 8
-      const x = tabWidth + this.cursor.x - (this.cursor.x % tabWidth)
-      this.setCursor(this.cursor.y, x)
-    } else if (seq.code === 'CUU') {
-      this.moveCursor(-count, 0)
-    } else if (seq.code === 'CUD') {
-      this.moveCursor(count, 0)
-    } else if (seq.code === 'CUF') {
-      this.moveCursor(0, count)
-    } else if (seq.code === 'CUB') {
-      this.moveCursor(0, -count)
-    } else if (seq.code === 'CNL') {
-      this.setCursor(this.cursor.y + count, 0)
     } else if (seq.code === 'DL') {
       this.deleteLines(count)
     } else if (seq.code === 'IL') {
@@ -602,8 +631,6 @@ class SubTerminal {
           this.clearScreen(true)
           break
       }
-    } else if (seq.code === 'CHA') {
-      this.setCursor(this.cursor.y, params[0] - 1)
     } else if (seq.code === 'SGR') {
       this.setFormat(params)
     } else if (seq.code === 'SM' || seq.code === 'RM') {
@@ -802,7 +829,7 @@ class SubTerminal {
 
     try {
       // TODO: Is -bufX needed
-      const t = text.slice(0, this.dimension.w - bufX)
+      const t = text
 
       let oldLine = this.buffer[bufY] || Buffer.alloc(this.size.cols, ' ')
 
@@ -822,8 +849,6 @@ class SubTerminal {
           format: this.format
         })
       }
-
-      this.cursor.x += t.length
     } catch (e) {
       log.info({ ERROR: { m: e.message, s: e.stack.split('\n') }, bufX, bufY })
     }
