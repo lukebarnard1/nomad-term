@@ -225,7 +225,8 @@ const getCodes = (s) => {
   const rest = s.slice(2)
 
   if (cache.has(s)) {
-    return { exact: { ...cache.get(s), params: cache.get(s).params.slice(0) } }
+    const exact = cache.get(s)
+    return { exact: { ...exact, params: exact.params.slice(0) } }
   }
 
   let i = 0
@@ -246,7 +247,12 @@ const getCodes = (s) => {
 
   return {
     some: matches.length > 0,
-    exact,
+    exact: exact && {
+      chars: exact.chars,
+      code: exact.code,
+      params: exact.params,
+      text: exact.text
+    },
     none: matches.length === 0
   }
 }
