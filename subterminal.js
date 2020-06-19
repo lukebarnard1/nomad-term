@@ -1,4 +1,3 @@
-
 const pty = require('node-pty')
 const log = require('./log')
 const os = require('os')
@@ -226,7 +225,7 @@ class SubTerminal {
 
   // Scroll lines in the scroll region by d
   updateScrollRegion (d) {
-    log.info({ scrollingBy: d })
+    log.info({ scrollingBy: d, sm: this.scrollMargins })
 
     // Scroll to the bottom because the program is trying to show us something :)
     this.scrollY = 0
@@ -235,11 +234,7 @@ class SubTerminal {
     const newFormatBuffer = {}
     for (let ix = 0; ix < this.size.rows; ix++) {
       if (this.isWithinScrollMargins(ix)) {
-        if (this.isWithinScrollMargins(ix + d)) {
-          newBuffer[ix] = this.buffer[ix + d] || ''
-        } else {
-          newBuffer[ix] = ''
-        }
+        newBuffer[ix] = this.buffer[ix + d] || ''
         newFormatBuffer[ix] = this.formatBuffer[ix + d] || []
       } else {
         newBuffer[ix] = this.buffer[ix] || ''
@@ -497,7 +492,8 @@ class SubTerminal {
 
     if (seq.code === 'NL' || seq.code === 'RI') {
       const d = Math.sign(this.getDeltaOutOfScrollMargins(this.cursor.y))
-      if (d !== 0) {
+      // NL should only cause +1 scroll, RI only -1
+      if (d === {NL: 1, RI: -1}[seq.code]) {
         this.updateScrollRegion(d)
         this.cursor.y = this.cursor.y - d
       }
