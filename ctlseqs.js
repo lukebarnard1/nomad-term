@@ -188,7 +188,12 @@ const fns = vals.map((s, ix) => {
       const { groups } = result
       const params = groups && groups.Pm ? groups.Pm.split(';').map(Number) : []
       const chars = groups && groups.Pchar ? groups.Pchar : ''
-      const rest = { length: results.length - results.indexOf(result) - 1 }
+
+      // Pchar (nml_tracking) requires 3 characters to be a match
+      const rest = chars
+        ? { length: 3 - chars.length }
+        : { length: results.length - results.indexOf(result) - 1 }
+
       const returning =
       {
         chars,

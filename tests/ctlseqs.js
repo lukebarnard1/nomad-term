@@ -10,6 +10,7 @@ const testCase = (s) => {
     sequenceCount: result.outs.filter(s => s.code).length,
     sequenceParameters: result.outs.filter(s => s.code).map(s => s.params),
     sequenceCodes: result.outs.filter(s => s.code).map(s => s.code),
+    sequenceChars: result.outs.filter(s => s.code).map(s => s.chars),
     texts: result.outs.filter(s => s.text).map(s => s.text)
   }
 }
@@ -118,5 +119,20 @@ module.exports = () => runTests('ctlseqs.js ', [
     description: 'will not return partial sequences',
     actual: testCase('\u001b[1;2;3;').sequenceCodes,
     expected: []
-  }
+  },
+  {
+    description: 'can capture mouse tracking sequence codes',
+    actual: testCase('\u001b[Mabc').sequenceCodes,
+    expected: ['nml_tracking']
+  },
+  {
+    description: 'does not capture mouse tracking as text',
+    actual: testCase('\u001b[Maaa\u001b[Mccc\u001b[Mbbb').texts,
+    expected: []
+  },
+  {
+    description: 'can capture mouse tracking sequence codes and all characters',
+    actual: testCase('\u001b[Maaa\u001b[Mccc\u001b[Mbbb').sequenceChars,
+    expected: ['aaa', 'ccc', 'bbb']
+  },
 ])
