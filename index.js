@@ -2,10 +2,11 @@
 
 const { stdin, stdout } = process
 
+const { getCtlSeqs } = require('./ctlseqs')
 const { createSubTerminal } = require('./subterminal')
 const log = require('./log')
 
-const { performance } = require('./perf')
+// const { performance } = require('./perf')
 
 function initWorkspace (shells = []) {
   return {
@@ -438,10 +439,10 @@ function drawBuffer (shell_id) {
   const isFocussed = fw.shells && fw.shells.length && shell_id === fw.shells[fw.focussed_shell].id
   const showGuide = state.mode > 0 && isFocussed
 
-  performance.mark('mark1')
+//  performance.mark('mark1')
   const lines = st.drawSubTerminal(w - 2, h - 1, { isFocussed, highlight: false })
-  performance.mark('mark2')
-  performance.measure('DRAW_SUB_TERMINAL', 'mark1', 'mark2')
+//  performance.mark('mark2')
+//  performance.measure('DRAW_SUB_TERMINAL', 'mark1', 'mark2')
 
   const blob = lines.map(
     (l, ix) =>
@@ -458,8 +459,8 @@ function drawBuffer (shell_id) {
     drawGuide(x, y, w, h)
   }
 
-  performance.mark('mark3')
-  performance.measure('OUTPUT_LINES', 'mark2', 'mark3')
+//  performance.mark('mark3')
+//  performance.measure('OUTPUT_LINES', 'mark2', 'mark3')
 }
 
 function drawGuide (x, y, w, h) {
