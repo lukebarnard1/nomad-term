@@ -271,6 +271,7 @@ class SubTerminal {
   deleteCharacter (n) {
     const { x, y } = this.cursor
     const oldLine = this.buffer[y]
+    if (!oldLine) return
     this.buffer[y] = oldLine.slice(0, x) + oldLine.slice(x + n)
   }
 
