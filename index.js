@@ -24,9 +24,10 @@ const reduce = (state = {
   workspaces: [initWorkspace()],
   focussed_workspace: 0
 }, action) => {
+  const canUpdateWorkspaces = state.mode || action.type === 'FOCUS_SHELL_ABSOLUTE'
   return {
     mode: reduceMode(state, action),
-    workspaces: state.mode ? reduceWorkspaces(state, action) : state.workspaces,
+    workspaces: canUpdateWorkspaces ? reduceWorkspaces(state, action) : state.workspaces,
     focussed_workspace: state.mode ? reduceFocussedWorkspace(state, action) : state.focussed_workspace,
     show_help:
       state.mode
@@ -82,6 +83,12 @@ function reduceCurrentWorkspace (state, action) {
   let newState = {}
 
   switch (action.type) {
+    case 'FOCUS_SHELL_ABSOLUTE':
+      const ix = shells.findIndex(st => st.id === action.targetId)
+      if ( ix !== -1 ) {
+        newState = { focussed_shell: ix }
+      }
+      break
     case 'FOCUS_SHELL':
       newState = { focussed_shell: rotatedTarget }
       break
@@ -179,7 +186,6 @@ function reduceWorkspaces (state, action) {
 
 let state
 function applyAction (action) {
-  log.info({ willApply: action })
   state = reduce(state, action)
 
   // Render borders, set sub terminal areas
@@ -547,11 +553,11 @@ let areas = {}
 
 function setBufferArea (x, y, w, h, id) {
   areas[id] = { x, y, w, h }
-  log.info({ areas })
 
   if (!subTerminals[id]) return
   // This is a side-effect, TODO - move this somewhere else
   subTerminals[id].resize(w - 2, h - 1)
+  subTerminals[id].position(x, y + 1)
   subTerminals[id].render()
 }
 
@@ -622,8 +628,6 @@ function onData (data) {
     // Stateful actions
     applyAction(action)
 
-    log.info({ state, action })
-
     switch (action.type) {
       // Don't send the escape sequence to the program, otherwise
       // it could cause unexpected results with it
@@ -639,6 +643,25 @@ function onData (data) {
         break
     }
   }
+
+  const seqs = getCtlSeqs(data.toString('utf8')).outs
+
+  seqs.forEach(seq => {
+    if (seq.code === 'nml_tracking') {
+      Object.keys(subTerminals).forEach(id => {
+        const st = subTerminals[id]
+        const subPos = st.translateMouse(seq.chars)
+        if (subPos.col < 0 || subPos.col > st.size.cols) return
+        if (subPos.row < 0 || subPos.row > st.size.rows) return
+
+        applyAction({
+          type: 'FOCUS_SHELL_ABSOLUTE',
+          targetId: id
+        })
+      })
+    }
+  })
+
 
   if (!(state && state.mode)) {
     const fw = state.workspaces[state.focussed_workspace]

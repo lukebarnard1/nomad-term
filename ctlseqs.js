@@ -365,7 +365,8 @@ const getCtlSeqs = (str) => {
 }
 
 module.exports = {
-  getCtlSeqs
+  getCtlSeqs,
+  CTL
 }
 
 // get all CSIs and parameters:

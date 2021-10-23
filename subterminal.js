@@ -4,7 +4,7 @@ const os = require('os')
 
 const { SubTerminal: OldSubTerminal } = require('./old-subterminal')
 
-const { getCtlSeqs } = require('./ctlseqs')
+const { getCtlSeqs, CTL } = require('./ctlseqs')
 const { updateCursor } = require('./cursor')
 
 function uniqueId () {
@@ -137,6 +137,20 @@ class SubTerminal {
   getLine (row) { return this.buffer[row] }
   getCursorPosition () { return this.cursor }
 
+  translateMouse(chars) {
+    const charsPosition = chars.slice(1)
+
+    const [charsX, charsY] = charsPosition.split('')
+
+    const screenX = charsX.charCodeAt(0) - 33 // "!!" is the origin, ! = 33
+    const screenY = charsY.charCodeAt(0) - 33
+
+    return {
+      col: screenX - this.screenPos.col,
+      row: screenY - this.screenPos.row
+    }
+  }
+
   writeToProc (data) {
     // Disable "DL" because there's a bug in ctlseqs that mistakes it for mouse
     // tracking and will cause the next sequence to break
@@ -158,9 +172,31 @@ class SubTerminal {
               '`': '\u001bOA',
               a: '\u001bOB'
             }[seq.chars[0]]
-            log.info({ sendingToProc: c })
-            if (c) this.writeProcCb(c)
-            return
+
+            if (c) {
+              this.writeProcCb(c)
+              return
+            }
+          }
+
+          switch (seq.chars[0]) {
+            case ' ':
+            case '#':
+              const subPos = this.translateMouse(seq.chars)
+              // Prevent any sequences when the position is outside of this subterminal
+              if (subPos.col < 0 || subPos.col > this.dimension.w) return
+              if (subPos.row < 0 || subPos.row > this.dimension.h) return
+
+              // Program has requested mouse tracking data, so proxy that but first translate
+              // the mouse position according to the position of the subterminal on the screen.
+              if (this.flags[1000]) {
+                // Construct CSI M Pchar sequence for mouse position in subterminal
+                const proxiedChars =
+                  seq.chars[0] +
+                  Buffer.from([33 + subPos.col, 33 + subPos.row]).toString()
+                this.writeProcCb(CTL.CSI.str + 'M' + proxiedChars)
+                return
+              }
           }
 
           switch (seq.chars[0]) {
@@ -177,10 +213,8 @@ class SubTerminal {
           this.render()
           return
         case 'CUP': // up
-          // this.updateScrollRegion(-1)
-          break
         case 'CUD': // down
-        // this.updateScrollRegion(1, 0)
+          // Handled in cursor.js
           break
       }
     }
@@ -194,14 +228,16 @@ class SubTerminal {
 
   // TODO: WRAPPING!
   resize (cols, rows) {
-    log.info({ resize: { cols, rows }, c: this.cursor, sc: this.scrollY })
-
     this.resizeCb(cols, rows)
     if (this.size.cols === cols && this.size.rows === rows) return
     this.size = { cols, rows }
 
     // After first resize, set default scroll margins
     this.setScrollMargins()
+  }
+
+  position (col, row) {
+    this.screenPos = { col, row }
   }
 
   // Set the scrolling margins of the screen. Rows outside of this
@@ -500,7 +536,7 @@ class SubTerminal {
       }
     }
 
-    log.info({ seq, cur: this.cursor, si: this.size })
+    log.info({ seq })
 
     if (!seq.code) return
 
@@ -567,6 +603,12 @@ class SubTerminal {
           this.setMode('IRM', shouldSet)
           break
       }
+    } else if (seq.code === 'CR') {
+      // Handled by proxying directly (see ctlseqs.js)
+    } else if (seq.code === 'NL') {
+      // Handled by proxying directly (see ctlseqs.js)
+    } else if (['CUU', 'CUD', 'CUF', 'CUB', 'CHA'].includes(seq.code)) {
+      // Handled by proxying directly (see cursor.js)
     } else {
       log.info({ unsupported: { seq } })
     }
