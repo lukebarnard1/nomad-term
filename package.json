@@ -13,6 +13,6 @@
     "node-pty": "0.9.0"
   },
   "devDependencies": {
-    "standard": "^14.3.3"
+    "standard": "^16.0.4"
   }
 }
