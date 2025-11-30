@@ -146,7 +146,9 @@ const CTL_SEQS = {
   DECRQLP: 'CSI Ps \' |',
   DECSNLS: 'CSI Ps * |',
   DECIC: 'CSI Pm \' }',
-  DECDC: 'CSI Pm \' ~'
+  DECDC: 'CSI Pm \' ~',
+  OSC52: 'OSC 52 ; [csp] ; Pdat OSC52_END',
+  OSC52_P: 'OSC 52 ; [csp] ; ? OSC52_END'
 }
 
 const keys = Object.keys(CTL_SEQS)
@@ -155,19 +157,33 @@ const fns = vals.map((s, ix) => {
   const prms = s
   // MUST remove CSI AND a space
     .replace(/^CSI /, '')
+    .replace(/^OSC /, '')
     .replace(/P[a-z] /, 'Pm ')
-    .replace(/ ; P./g, '')
+    .replace(/ ; P. /g, ' ')
     .split(' ')
+
+  function mapParamDesc(s) {
+    switch (s) {
+      case 'Pchar': return  '(?<Pchar>[^\u001b]*)';
+      case 'Pdat': return '(?<Pdat>[^\u0007]*)';
+      case 'Pm': return '(?<Pm>[0-9;]*)';
+      case 'SP': return ' '
+      case ';': return ';'
+      case 'OSC52_END': return '(\u0007|\u001b\\\\)'
+      default:
+        if (s.length === 1) {
+          return `[\\\\${s}]`
+        } else {
+          return s;
+        }
+    }
+  }
 
   const exps = prms.map((prm, i) => new RegExp(
     '^' +
-    prms.slice(0, i + 1).map(k =>
-      ({
-        Pchar: '(?<Pchar>[^\u001b]*)',
-        Pm: '(?<Pm>[0-9;]*)',
-        SP: ' '
-      }[k] || `[\\\\${k}]`)
-    ).join('') +
+    prms.slice(0, i + 1)
+      .map(k => mapParamDesc(k))
+      .join('') +
     '$'
   )).slice(1)
 
@@ -199,6 +215,7 @@ const fns = vals.map((s, ix) => {
         chars,
         params: [...params],
         code: keys[ix],
+        raw: p,
         rest
       }
       return returning
@@ -227,6 +244,9 @@ const getCodes = (s) => {
 
   const matches = []
 
+  if (s === '\u001b]') return { some: true }
+
+  // TODO: This assumes parameters start after two characters
   const rest = s.slice(2)
 
   if (cache.has(s)) {

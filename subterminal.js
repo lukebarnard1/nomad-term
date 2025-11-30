@@ -6,6 +6,7 @@ const { SubTerminal: OldSubTerminal } = require('./old-subterminal')
 
 const { getCtlSeqs, CTL } = require('./ctlseqs')
 const { updateCursor } = require('./cursor')
+const { stdout } = require('process')
 
 function uniqueId () {
   return Math.random().toString(36).slice(2)
@@ -609,6 +610,13 @@ class SubTerminal {
       // Handled by proxying directly (see ctlseqs.js)
     } else if (['CUU', 'CUD', 'CUF', 'CUB', 'CHA'].includes(seq.code)) {
       // Handled by proxying directly (see cursor.js)
+    } else if (seq.code === 'OSC52') {
+      // Pass original raw sequence through to the parent terminal via stdout
+      // TODO: This is flaky - doesn't always copy to the host clipboard
+      stdout.write("\u001b]" + seq.raw);
+    } else if (seq.code === 'OSC52_P') {
+      // TODO Write to the process a OSC52 reply
+      log.info({ unsupported: { seq }, OSC52: true })
     } else {
       log.info({ unsupported: { seq } })
     }
