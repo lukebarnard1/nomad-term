@@ -975,22 +975,22 @@ ms@2.1.2, ms@^2.1.1:
   resolved "https://registry.yarnpkg.com/ms/-/ms-2.1.2.tgz#d09d1f357b443f493382a8eb3ccd183872ae6009"
   integrity sha512-sGkPx+VjMtmA6MX27oA4FBFELFCZZ4S4XqeGOXCv68tT+jb3vk/RyaKWP0PTKyWtmLSM0b+adUTEvbs1PEaH2w==
 
-nan@^2.14.0:
-  version "2.15.0"
-  resolved "https://registry.yarnpkg.com/nan/-/nan-2.15.0.tgz#3f34a473ff18e15c1b5626b62903b5ad6e665fee"
-  integrity sha512-8ZtvEnA2c5aYCZYd1cvgdnU6cqwixRoYg70xPLWUws5ORTa/lnw+u4amixRS/Ac5U5mQVgp9pnlSUnbNWFaWZQ==
+nan@^2.17.0:
+  version "2.23.1"
+  resolved "https://registry.yarnpkg.com/nan/-/nan-2.23.1.tgz#6f86a31dd87e3d1eb77512bf4b9e14c8aded3975"
+  integrity sha512-r7bBUGKzlqk8oPBDYxt6Z0aEdF1G1rwlMcLk8LCOMbOzf0mG+JUfUzG4fIMWwHWP0iyaLWEQZJmtB7nOHEm/qw==
 
 natural-compare@^1.4.0:
   version "1.4.0"
   resolved "https://registry.yarnpkg.com/natural-compare/-/natural-compare-1.4.0.tgz#4abebfeed7541f2c27acfb29bdbbd15c8d5ba4f7"
   integrity sha1-Sr6/7tdUHywnrPspvbvRXI1bpPc=
 
-node-pty@0.9.0:
-  version "0.9.0"
-  resolved "https://registry.yarnpkg.com/node-pty/-/node-pty-0.9.0.tgz#8f9bcc0d1c5b970a3184ffd533d862c7eb6590a6"
-  integrity sha512-MBnCQl83FTYOu7B4xWw10AW77AAh7ThCE1VXEv+JeWj8mSpGo+0bwgsV+b23ljBFwEM9OmsOv3kM27iUPPm84g==
+node-pty@^1.0.0:
+  version "1.0.0"
+  resolved "https://registry.yarnpkg.com/node-pty/-/node-pty-1.0.0.tgz#7daafc0aca1c4ca3de15c61330373af4af5861fd"
+  integrity sha512-wtBMWWS7dFZm/VgqElrTvtfMq4GzJ6+edFI0Y0zyzygUSZMgZdraDUMUhCIvkjhJjme15qWmbyJbtAx4ot4uZA==
   dependencies:
-    nan "^2.14.0"
+    nan "^2.17.0"
 
 normalize-package-data@^2.3.2:
   version "2.5.0"
