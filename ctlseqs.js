@@ -148,138 +148,182 @@ const CTL_SEQS = {
   DECIC: 'CSI Pm \' }',
   DECDC: 'CSI Pm \' ~',
   OSC52: 'OSC 52 ; [csp] ; Pdat OSC52_END',
-  OSC52_P: 'OSC 52 ; [csp] ; ? OSC52_END'
+  OSC52_P: 'OSC 52 ; [csp] ; ? OSC52_END',
+  RI: 'ESC M',
+  // TODO
+  DECKPAM: 'ESC =', // Enter Keypad Application Mode (DEC Private)
+  DECKPNM: 'ESC >', // Enter Keypad Numeric Mode (DEC Private)
+  DECSC: 'ESC 7', // Save Cursor Position (DEC Private) - save cursor pos/style
+  DECRC: 'ESC 8', // Restore Cursor Position (DEC Private)
+  UNKNOWN: 'ESC ] 112 BEL',
+  UNKNOWN_2: 'CSI > Pm m'
 }
 
+const trie = { }
+
 const keys = Object.keys(CTL_SEQS)
-const vals = Object.values(CTL_SEQS)
-const fns = vals.map((s, ix) => {
-  const prms = s
-  // MUST remove CSI AND a space
-    .replace(/^CSI /, '')
-    .replace(/^OSC /, '')
-    .replace(/P[a-z] /, 'Pm ')
-    .replace(/ ; P. /g, ' ')
-    .split(' ')
 
-  function mapParamDesc(s) {
-    switch (s) {
-      case 'Pchar': return  '(?<Pchar>[^\u001b]*)';
-      case 'Pdat': return '(?<Pdat>[^\u0007]*)';
-      case 'Pm': return '(?<Pm>[0-9;]*)';
-      case 'SP': return ' '
-      case ';': return ';'
-      case 'OSC52_END': return '(\u0007|\u001b\\\\)'
-      default:
-        if (s.length === 1) {
-          return `[\\\\${s}]`
-        } else {
-          return s;
-        }
+const reg = {
+  Pm: new RegExp('^(?<Pm>[0-9]+)'),
+  Pchar: new RegExp('^(?<Pchar>[^\u001b]{3})'),
+  Pdat: new RegExp('^(?<Pdat>[^\u0007\u001b]+)')
+}
+const TOKEN_MATCH_FN = {
+  OSC: (s) => s.startsWith(CTL.OSC.str) ? {consumed: 2} : {},
+  CSI: (s) => s.startsWith(CTL.CSI.str) ? {consumed: 2} : {},
+  Pchar: (s) => {
+    const res = reg.Pchar.exec(s);
+    return res ? { consumed: res[0].length, chars: res.groups.Pchar} : {};
+  },
+  Pdat: (s) => {
+    const res = reg.Pdat.exec(s);
+    return res ? { consumed: res[0].length, dat: res.groups.Pdat} : {};
+  },
+  // TODO: Generalise this a bit
+  '[csp]': (s) => (s[0] === 'c' || s[0] === 's' || s[0] === 'p') ? {consumed: 1} : {},
+  'OSC52_END': (s) => {
+    if(s[0] === '\u0007') return { consumed: 1 }
+    if(s[0] === '\u001b' && s[1] === '\\') return { consumed: 2 }
+  },
+  'Pm': (s) => {
+    const res = reg.Pm.exec(s);
+    return {
+      optional: true,
+      ...(res ? { consumed: res[0].length, params: [Number(res.groups.Pm)]}: {})
     }
   }
+}
 
-  const exps = prms.map((prm, i) => new RegExp(
-    '^' +
-    prms.slice(0, i + 1)
-      .map(k => mapParamDesc(k))
-      .join('') +
-    '$'
-  )).slice(1)
+function getMatchFn(token) {
+  token = {
+    SP: ' ',
+    BEL: '\u0007',
+    ESC: '\u001b'
+  }[token] || token;
+  const fn = TOKEN_MATCH_FN[token]
+  if (fn) return fn;
+  if (token.length === 1) {
+    return (s) => {
+      return s[0] === token ? { consumed: 1 } : {}
+    };
+  }
+  if (token.length > 1) {
+    return (s) => s.startsWith(token) ? { consumed: token.length } : {};
+  }
+  return () => {}
+}
 
-  const n = new RegExp('^[0-9;]+$')
-
-  const fTest = prms[0] === 'Pm' ? (p) => n.test(p) : () => false
-
-  // Return true if p is a prefix of prms.
-  const test = (p) => {
-    if (fTest(p)) {
-      return { code: keys[ix] }
-    }
-
-    const results = exps.map(e => e.exec(p))
-    const matching = results.filter(r => r)
-    const result = matching[matching.length - 1]
-    if (result && result[0].length && result[0].length <= p.length) {
-      const { groups } = result
-      const params = groups && groups.Pm ? groups.Pm.split(';').map(Number) : []
-      const chars = groups && groups.Pchar ? groups.Pchar : ''
-
-      // Pchar (nml_tracking) requires 3 characters to be a match
-      const rest = chars
-        ? { length: 3 - chars.length }
-        : { length: results.length - results.indexOf(result) - 1 }
-
-      const returning =
-      {
-        chars,
-        params: [...params],
-        code: keys[ix],
-        raw: p,
-        rest
-      }
-      return returning
+for (const key of keys) {
+  const pattern = CTL_SEQS[key];
+  const rest = pattern.split(' ')
+  let node = trie;
+  while (rest.length > 0) {
+    let token = rest.shift();
+    token = token.replace(/P[a-z]$/, 'Pm')
+    // Token is already present on current node, use existing
+    if (node[token]) {
+      node = node[token]
     } else {
-      return false
+      // Token does not exist on node, add a stub for it
+      let next = { _token: token, _matchFn: getMatchFn(token) };
+      if (rest.length === 0) {
+        // Indicate that this is a terminal token
+        next._code = key;
+      }
+      if (token === 'Pm') {
+        // This token can repeat the previous "Pm" any number of times
+        // Give the trie structure a way of repeating itself by
+        // circular reference
+        next[';'] = {
+          _token: ';',
+          _matchFn: getMatchFn(';'),
+          'Pm': next
+        }
+      }
+      node[token] = next;
+      node = next;
     }
   }
+}
 
-  return {
-    test,
-    code: keys[ix]
+function getLongestMatchingCtlSeq(s) {
+  // Walk the Trie to find the deepest matching path
+  let pointers = [{node: trie, rest: s}];
+  let longestMatch = null;
+  while (pointers.length > 0) {
+    const next = [];
+    for (const p of pointers) {
+      for (const k of Object.keys(p.node)) {
+        if (k === '_token' || k === '_matchFn' || k === '_code') continue;
+        // Check for a prefix match
+        let {
+          consumed,
+          params,
+          chars,
+          optional
+        } = p.node[k]._matchFn(p.rest);
+        if (consumed > 0) {
+          // Keep advancing each pointer if there's a match
+          next.push({
+            node: p.node[k],
+            params: [...(p.params || []), ...(params || [])],
+            chars: chars || p.chars,
+            raw: (p.raw || '') + p.rest.slice(0, consumed),
+            rest: p.rest.slice(consumed),
+            consumed,
+          });
+        } else if (optional) {
+          // Advance without consuming
+          next.push({
+            ...p,
+            node: p.node[k],
+          });
+        }
+      }
+    }
+    pointers = next;
+    // At this point, some pointers will have reached a complete
+    // pattern
+    for (const p of pointers) {
+      let match = null;
+      if (p.node._code) {
+        match = p;
+        match.code = p.node._code;
+      } else if (p.rest === '') {
+        match = p
+      }
+      if (match && (!longestMatch || match.raw.length > longestMatch.raw.length)) {
+        longestMatch = match;
+      }
+    }
   }
-})
+  return longestMatch;
+}
 
-const r = new RegExp('^\u001b\\[?$')
 const cache = new Map()
 
 const getCodes = (s) => {
-  if (r.test(s)) {
-    return { some: true }
-  }
-  // TODO: better support for non-CSI seqs
-  if (s === '\u001bM') return { exact: { code: 'RI', rest: [] } }
-  // FIXME: Don't cache DL - it's an ambiguous prefix of nml_tracking
-  if (s === '\u001b[M') return { some: true, exact: { code: 'DL', params: [], rest: [] } }
-
-  const matches = []
-
-  if (s === '\u001b]') return { some: true }
-
-  // TODO: This assumes parameters start after two characters
-  const rest = s.slice(2)
+  const rest = s
 
   if (cache.has(s)) {
     const exact = cache.get(s)
-    return { exact: { ...exact, params: exact.params.slice(0) } }
+    return { ...exact, params: exact.params.slice(0) }
   }
 
-  let i = 0
-  while (matches.length < 2 && i < fns.length) {
-    const res = fns[i].test(rest)
-    if (res) {
-      matches.push(res)
-    }
-    i++
-  }
-
-  const first = matches[0]
-  const exact = first && first.rest && first.rest.length === 0 && first
+  const exact = getLongestMatchingCtlSeq(rest);
 
   if (exact) {
     cache.set(s, { ...exact, params: exact.params.slice(0) })
   }
 
-  return {
-    some: matches.length > 0,
-    exact: exact && {
-      chars: exact.chars,
-      code: exact.code,
-      params: exact.params,
-      text: exact.text
-    },
-    none: matches.length === 0
-  }
+  return exact ? {
+    chars: exact.chars,
+    code: exact.code,
+    params: exact.params,
+    text: exact.text,
+    rest: exact.rest,
+    raw: exact.raw
+  } : null
 }
 
 const singleCharCtl = {
@@ -343,37 +387,16 @@ const getCtlSeqs = (str) => {
         outs: [...outs, ...addText(rest)]
       }
     }
-    // Test for sequences adding character by character
-    // to find the longest exact match
-    let test = ''
-    let lastMatching
-    let lastTest
-    let i = -1
-    let none, exact, some
-    do {
-      i++
-      test = rest.slice(0, i + 1)
+    const match = getCodes(rest);
 
-      const codeResult = getCodes(test)
-      none = codeResult.none
-      some = codeResult.some
-      exact = codeResult.exact
-
-      if (exact) {
-        lastMatching = exact
-        lastTest = test
-      }
-    } while (some && i < rest.length - 1)
-
-    if (lastMatching) {
-      outs.push(lastMatching)
-      rest = rest.slice(lastTest.length)
+    if (match) {
+      outs.push(match)
+      rest = match.rest;
     } else {
       // Slice even if there was no match so that we don't get stuck
       // on unrecognised sequences
-      if (none) {
-        rest = rest.slice(i + 1)
-      }
+      // TODO: Really? Is this a good idea?
+      rest = rest.slice(1)
     }
   } while (rest.length !== prevRest.length)
 

@@ -537,7 +537,7 @@ class SubTerminal {
       }
     }
 
-    log.info({ seq })
+    log.info({ seq: { code: seq.code, params: seq.params } })
 
     if (!seq.code) return
 
@@ -608,7 +608,7 @@ class SubTerminal {
       // Handled by proxying directly (see ctlseqs.js)
     } else if (seq.code === 'NL') {
       // Handled by proxying directly (see ctlseqs.js)
-    } else if (['CUU', 'CUD', 'CUF', 'CUB', 'CHA'].includes(seq.code)) {
+    } else if (['CUP', 'CUU', 'CUD', 'CUF', 'CUB', 'CHA'].includes(seq.code)) {
       // Handled by proxying directly (see cursor.js)
     } else if (seq.code === 'OSC52') {
       // Pass original raw sequence through to the parent terminal via stdout
@@ -843,10 +843,14 @@ class SubTerminal {
       rest
     } = getCtlSeqs(currentRest + data.toString('utf8'))
 
-    log.info({ data: data.toString('utf8'), seqs })
-
     if (rest) {
       this.rest = rest
+    }
+    const lastSeq = seqs[seqs.length - 1]
+    if (lastSeq && !lastSeq.code && !lastSeq.text && lastSeq.raw) {
+      // This could be an unfinished control sequence, so prepend
+      // it to this.rest
+      this.rest = (lastSeq.raw || '') + (rest || '');
     }
 
     seqs.forEach(s => this.reduceTerminalAction(s))

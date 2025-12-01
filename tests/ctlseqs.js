@@ -78,7 +78,7 @@ module.exports = () => runTests('ctlseqs.js ', [
     description: 'can handle the vim sequence with no text (sequences)',
     actual: testCase(vimSeq).sequenceCodes,
     expected: [
-      'DECSET', 'DECSET', 'CUP', 'ED', 'DECSET', 'DECSET', 'window_management', 'DECSTBM', 'CUP', 'SGR', 'SGR', 'SGR',
+      'DECSC', 'DECSET', 'DECSET', 'DECKPAM', 'CUP', 'ED', 'DECSET', 'DECSET', 'window_management', 'DECSTBM', 'CUP', 'SGR', 'SGR', 'SGR',
       'CR', 'NL',
       'CR', 'NL',
       'CR', 'NL',
@@ -108,7 +108,7 @@ module.exports = () => runTests('ctlseqs.js ', [
   {
     description: 'can handle deletion of lines without parameters',
     actual: testCase('\u001b[M').sequenceParameters,
-    expected: [[]]
+    expected: []
   },
   {
     description: 'handles ambiguous sequences',
@@ -134,5 +134,15 @@ module.exports = () => runTests('ctlseqs.js ', [
     description: 'can capture mouse tracking sequence codes and all characters',
     actual: testCase('\u001b[Maaa\u001b[Mccc\u001b[Mbbb').sequenceChars,
     expected: ['aaa', 'ccc', 'bbb']
+  },
+  {
+    description: 'handles a simple OSC52 request',
+    actual: testCase('\u001b]52;c;aaaaaa=\u0007').sequenceCodes,
+    expected: ['OSC52']
+  },
+  {
+    description: 'handles a simple OSC52 request alt ending',
+    actual: testCase('\u001b]52;c;dGVzdGluZyB0ZXN0aW5nCg==\u001b\\').sequenceCodes,
+    expected: ['OSC52']
   },
 ])
