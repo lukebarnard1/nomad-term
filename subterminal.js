@@ -617,6 +617,9 @@ class SubTerminal {
     } else if (seq.code === 'OSC52_P') {
       // TODO Write to the process a OSC52 reply
       log.info({ unsupported: { seq }, OSC52: true })
+    } else if (seq.code === 'DSR') {
+      // Send 'OK' status in reply
+      this.writeProcCb("\u001b[0n")
     } else {
       log.info({ unsupported: { seq } })
     }
