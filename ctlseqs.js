@@ -156,7 +156,8 @@ const CTL_SEQS = {
   DECSC: 'ESC 7', // Save Cursor Position (DEC Private) - save cursor pos/style
   DECRC: 'ESC 8', // Restore Cursor Position (DEC Private)
   UNKNOWN: 'ESC ] 112 BEL',
-  UNKNOWN_2: 'CSI > Pm m'
+  UNKNOWN_2: 'CSI > Pm m',
+  HTS: 'ESC H'
 }
 
 const trie = { }
