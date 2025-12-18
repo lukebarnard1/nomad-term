@@ -621,6 +621,8 @@ class SubTerminal {
     } else if (seq.code === 'DSR') {
       // Send 'OK' status in reply
       this.writeProcCb("\u001b[0n")
+    } else if (seq.code === 'BL') {
+      stdout.write('\u0007');
     } else {
       log.info({ unsupported: { seq } })
     }
