@@ -147,8 +147,10 @@ const CTL_SEQS = {
   DECSNLS: 'CSI Ps * |',
   DECIC: 'CSI Pm \' }',
   DECDC: 'CSI Pm \' ~',
-  OSC52: 'OSC 52 ; [csp] ; Pdat OSC52_END',
-  OSC52_P: 'OSC 52 ; [csp] ; ? OSC52_END',
+  OSC52: 'OSC 52 ; [csp] ; Pdat OSC_END',
+  OSC52_P: 'OSC 52 ; [csp] ; ? OSC_END',
+  OSC_GET_BG_COL: 'OSC 11 ; ? OSC_END',
+  OSC_RST_CSR_COL: 'OSC 112 OSC_END',
   RI: 'ESC M',
   // TODO
   DECKPAM: 'ESC =', // Enter Keypad Application Mode (DEC Private)
@@ -182,7 +184,7 @@ const TOKEN_MATCH_FN = {
   },
   // TODO: Generalise this a bit
   '[csp]': (s) => (s[0] === 'c' || s[0] === 's' || s[0] === 'p') ? {consumed: 1} : {},
-  'OSC52_END': (s) => {
+  'OSC_END': (s) => {
     if(s[0] === '\u0007') return { consumed: 1 }
     if(s[0] === '\u001b' && s[1] === '\\') return { consumed: 2 }
   },
