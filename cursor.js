@@ -1,57 +1,49 @@
 
 module.exports = {
-  updateCursor ({ x, y }, { cols, rows }, seq) {
+  updateCursor ({ x, y, style }, { cols, rows }, seq) {
     const { code, text, params = [1] } = seq
     // TODO: Test that default count is 1
     const count = params[0] || 1
     const tabWidth = 8
 
     if (text) {
-      return { x: x + text.length, y }
+      return { x: x + text.length, y, style }
     }
+
+    let update = {};
 
     switch (code) {
       case 'HVP':
       case 'CUP':
-        return {
+        update = {
           y: (params[0] || 1) - 1,
           x: (params[1] || 1) - 1
         }
+        break
       case 'CR':
-        return {
-          y,
-          x: 0
-        }
+        update.x = 0;
+        break
       case 'HTS':
-        return {
-          y,
-          x: tabWidth + x - (x % tabWidth)
-        }
+        update.x = tabWidth + x - (x % tabWidth);
+        break
       case 'CNL':
-        return {
+        update = {
           y: y + count,
           x: 0
         }
+        break
       case 'CHA':
-        return {
-          y,
-          x: params[0] - 1
-        }
+        update.x = params[0] - 1;
+        break
       case 'NL':
-        return {
-          y: y + 1,
-          x
-        }
+        update.y = y + 1;
+        break
       case 'RI':
-        return {
-          y: y - 1,
-          x
-        }
+        update.y = y - 1;
+        break
       case 'BS':
-        return {
-          y,
-          x: x - 1
-        }
+        update.x = x - 1;
+        break
     }
 
     if (code === 'CUU' || code === 'CUD' || code === 'CUF' || code === 'CUB') {
@@ -63,12 +55,16 @@ module.exports = {
         case 'CUF': dx = count; break
         case 'CUB': dx = -count; break
       }
-      return {
-        x: Math.max(Math.min(x + dx, cols), 0),
-        y: Math.max(Math.min(y + dy, rows), 0)
-      }
+      update.x = Math.max(Math.min(x + dx, cols), 0);
+      update.y = Math.max(Math.min(y + dy, rows), 0);
     }
 
-    return { y, x }
+    switch (code) {
+      case 'DECSCUSR':
+        update.style = params[0] || 0;
+      break;
+    }
+
+    return { y, x, style, ...update }
   }
 }

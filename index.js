@@ -457,6 +457,9 @@ function drawBuffer (shell_id) {
 
   if (showGuide) {
     drawGuide(x, y, w, h)
+  } else if (isFocussed) {
+    // Draw the cursor of the parent terminal at the position within this sub-terminal
+    stdout.write(st.drawCursor(x + 1, y + 2));
   }
 
 //  performance.mark('mark3')
@@ -569,6 +572,8 @@ function render () {
 
   const fw = state.workspaces[state.focussed_workspace]
 
+  // Disable cursor temporarily to avoid flashing
+  stdout.write('\u001b[?25l')
   stdout.cursorTo(1, 1)
 
   // TODO: Column layout
@@ -577,6 +582,10 @@ function render () {
   } else if (fw.layout === 0) {
     renderTwoPanes(fw)
   }
+
+  // Re-enable cursor
+  // TODO: (this should be avoided when showing the guide!)
+  stdout.write('\u001b[?25h')
 }
 
 function renderFullScreen (fw) {

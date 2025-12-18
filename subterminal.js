@@ -118,7 +118,8 @@ class SubTerminal {
 
     this.cursor = {
       x: 0,
-      y: 0
+      y: 0,
+      style: 0,
     }
 
     // Effective maximum size of viewport
@@ -608,7 +609,7 @@ class SubTerminal {
       // Handled by proxying directly (see ctlseqs.js)
     } else if (seq.code === 'NL') {
       // Handled by proxying directly (see ctlseqs.js)
-    } else if (['CUP', 'CUU', 'CUD', 'CUF', 'CUB', 'CHA'].includes(seq.code)) {
+    } else if (['DECSCUSR', 'BS', 'CUP', 'CUU', 'CUD', 'CUF', 'CUB', 'CHA'].includes(seq.code)) {
       // Handled by proxying directly (see cursor.js)
     } else if (seq.code === 'OSC52') {
       // Pass original raw sequence through to the parent terminal via stdout
@@ -623,6 +624,13 @@ class SubTerminal {
     } else {
       log.info({ unsupported: { seq } })
     }
+  }
+
+  drawCursor(x, y) {
+    const cx = x + this.cursor.x;
+    const cy = y + this.cursor.y;
+    const cursorStyle = this.cursor.style || 0;
+    return `\u001b[${cy};${cx}H\u001b[${cursorStyle} q`;
   }
 
   drawSubTerminal (w, h, { isFocussed }) {
@@ -666,14 +674,7 @@ class SubTerminal {
       line = originalLine.toString('utf8').slice(0, w)
       line = line + (line.length < w ? Buffer.alloc(w - line.length, ' ') : '')
 
-      // TODO: allow programs to hide cursor
-      // TODO: draw cursor elsewhere, otherwise we can't cache drawn lines easily
-      if (bufY === this.cursor.y && isFocussed) {
-        line = line.slice(0, this.cursor.x) + '_' + line.slice(this.cursor.x + 1)
-      }
-
-      // TODO: Pointless k => k ?
-      line = this.applyFormats(line, formats.map(k => k))
+      line = this.applyFormats(line, [...formats])
 
       lines.push(line)
 
@@ -800,7 +801,7 @@ class SubTerminal {
 
     const bufX = this.cursor.x
     const bufY = this.cursor.y
-    log.info({ text, bufX, bufY })
+    log.info({ text, bufX, bufY, style: this.cursor.style })
 
     // text could include cariage returns
     //   \n moves down
